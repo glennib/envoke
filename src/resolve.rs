@@ -283,8 +283,8 @@ fn resolve_source(
 /// Returns either all resolved values (in deterministic order) or all errors
 /// encountered.
 ///
-/// When `tags` is non-empty, only variables that are untagged or have at least
-/// one matching tag are included.
+/// Variables with tags are only included when at least one of their tags is
+/// passed via the `tags` parameter. Untagged variables are always included.
 pub fn resolve_all(
     config: &Config,
     environment: &str,
@@ -295,10 +295,9 @@ pub fn resolve_all(
     let mut errors = Vec::new();
 
     for (name, variable) in &config.variables {
-        // Tag filtering: if CLI tags are active and the variable has tags,
-        // skip it unless at least one tag matches.
-        if !active_tags.is_empty()
-            && !variable.tags.is_empty()
+        // Tag filtering: tagged variables require at least one matching
+        // --tag flag; untagged variables are always included.
+        if !variable.tags.is_empty()
             && !variable
                 .tags
                 .iter()
@@ -737,7 +736,7 @@ mod tests {
     // --- Tag filtering tests ---
 
     #[test]
-    fn test_no_cli_tags_includes_all() {
+    fn test_no_cli_tags_excludes_tagged() {
         let config = Config {
             variables: BTreeMap::from([
                 (
@@ -754,7 +753,8 @@ mod tests {
             ]),
         };
         let resolved = resolve_all(&config, "local", &[]).unwrap();
-        assert_eq!(resolved.len(), 2);
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].name, "UNTAGGED");
     }
 
     #[test]
@@ -880,8 +880,8 @@ mod tests {
                 ),
             ]),
         };
-        // SECRET is excluded by tag filter, so CONN's template reference fails
-        let err = resolve_all(&config, "local", &["other".to_owned()]).unwrap_err();
+        // SECRET is excluded by tag filter (no matching tag), so CONN's template reference fails
+        let err = resolve_all(&config, "local", &[]).unwrap_err();
         assert!(err.iter().any(
             |e| matches!(&e.kind, ResolveErrorKind::UnknownReference { name } if name == "SECRET")
         ));
@@ -948,9 +948,9 @@ mod tests {
                 ),
             ]),
         };
-        // Without tag filtering, PROD_ONLY would cause NoConfig for "local".
-        // With tag filtering excluding it, no error occurs.
-        let resolved = resolve_all(&config, "local", &["other".to_owned()]).unwrap();
+        // PROD_ONLY is tagged, so without --tag prod-secrets it's excluded,
+        // avoiding the NoConfig error it would otherwise produce for "local".
+        let resolved = resolve_all(&config, "local", &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "ALWAYS");
     }

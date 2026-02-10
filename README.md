@@ -184,10 +184,10 @@ LOG_LEVEL:
 
 ### Tags
 
-Variables can be tagged for conditional inclusion. When `--tag` flags are passed
-on the CLI, only variables with at least one matching tag (or no tags at all) are
-included. This is useful for skipping slow-to-resolve variables or optional
-components when they are not needed.
+Variables can be tagged for conditional inclusion. Tagged variables are only
+included when at least one of their tags is passed via `--tag`. Untagged
+variables are always included. This is useful for gating expensive-to-resolve
+variables (e.g. vault lookups) or optional components behind explicit opt-in.
 
 ```yaml
 variables:
@@ -213,20 +213,24 @@ variables:
 ```
 
 ```sh
-# Only resolve vault-tagged variables (and all untagged ones):
+# Without --tag, only untagged variables are included:
+$ envoke local
+DB_HOST='localhost'
+
+# Include vault-tagged variables (and all untagged ones):
 $ envoke local --tag vault
 DB_HOST='localhost'
 VAULT_SECRET='dev-secret'
 
-# Resolve everything (no filtering):
-$ envoke local
+# Include everything:
+$ envoke local --tag vault --tag oauth
 DB_HOST='localhost'
 OAUTH_CLIENT_ID='local-client-id'
 VAULT_SECRET='dev-secret'
 ```
 
 Variables without tags are always included regardless of which `--tag` flags are
-passed.
+passed. Tagged variables require explicit opt-in.
 
 ## CLI usage
 
