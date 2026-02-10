@@ -1,6 +1,6 @@
 [package]
 name = "envoke-cli"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 repository = "https://github.com/glennib/envoke"
 description = "Resolve environment variables from a declarative YAML config file"
