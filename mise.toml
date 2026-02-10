@@ -3,6 +3,7 @@ cargo-binstall = "latest"
 "cargo:cargo-dist" = "latest"
 "cargo:cargo-nextest" = "latest"
 "cargo:release-plz" = "latest"
+jq = "latest"
 
 [tasks.install]
 description = "Install the envoke binary"
@@ -38,7 +39,7 @@ run = "cargo build --release"
 
 [tasks.schema]
 description = "Output JSON Schema to stdout"
-run = "cargo run --release -- --schema"
+run = "cargo run --release -- --schema | jq --sort-keys"
 
 [tasks."schema:write"]
 description = "Write JSON Schema to envoke.schema.json"
