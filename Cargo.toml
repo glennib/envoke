@@ -1,11 +1,31 @@
 [package]
-name = "envoke"
+name = "envoke-cli"
 version = "0.1.0"
 edition = "2024"
 repository = "https://github.com/glennib/envoke"
 description = "Resolve environment variables from a declarative YAML config file"
 license = "MIT OR Apache-2.0"
 authors = ["Glenn Bitar <glennbitar@gmail.com>"]
+
+[[bin]]
+name = "envoke"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.101"
+chrono = { version = "0.4.43", default-features = false, features = ["clock"] }
+clap = { version = "4.5.57", features = ["derive"] }
+minijinja = { version = "2.15.1", features = ["urlencode"] }
+schemars = "1.2.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+serde_yaml = "0.9.34"
+thiserror = "2.0.18"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
 
 [profile.release]
 strip = true
