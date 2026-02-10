@@ -210,6 +210,14 @@ variables:
   # ...
 ```
 
+Alternatively, point directly at the hosted schema without writing a local file:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/glennib/envoke/refs/heads/main/envoke.schema.json
+variables:
+  # ...
+```
+
 ## How it works
 
 1. Parse the YAML config file.
