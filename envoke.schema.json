@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Config",
+  "description": "Top-level envoke configuration, typically loaded from `envoke.yaml`.",
+  "type": "object",
+  "properties": {
+    "variables": {
+      "description": "Map of variable names to their definitions.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Variable"
+      }
+    }
+  },
+  "required": [
+    "variables"
+  ],
+  "$defs": {
+    "Source": {
+      "description": "How to obtain the value for a variable in a given environment.\n\nExactly one of `literal`, `cmd`, `sh`, `template`, or `skip` must be\nspecified.",
+      "type": "object",
+      "properties": {
+        "cmd": {
+          "description": "A command to execute; stdout is captured and trimmed.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "literal": {
+          "description": "A fixed string value.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sh": {
+          "description": "A shell script to execute via `sh -c`; stdout is captured and trimmed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "skip": {
+          "description": "When `true`, the variable is silently omitted from output.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "template": {
+          "description": "A string with `{VAR_NAME}` placeholders resolved from other variables.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Variable": {
+      "description": "A single environment variable with per-environment sources.",
+      "type": "object",
+      "properties": {
+        "default": {
+          "description": "Fallback source used when the requested environment has no entry in\n`envs`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Source"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "description": "Human-readable description, rendered as a comment in output.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "envs": {
+          "description": "Map of environment names to value sources.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Source"
+          }
+        }
+      }
+    }
+  }
+}

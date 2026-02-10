@@ -36,6 +36,18 @@ run = "cargo nextest run --all-targets"
 description = "Build release binary"
 run = "cargo build --release"
 
+[tasks.schema]
+description = "Output JSON Schema to stdout"
+run = "cargo run --release -- --schema"
+
+[tasks."schema:write"]
+description = "Write JSON Schema to envoke.schema.json"
+run = "mise run schema > envoke.schema.json"
+
+[tasks."schema:check"]
+description = "Check that envoke.schema.json is up to date"
+run = "mise run schema | diff - envoke.schema.json"
+
 [tasks.ci]
 description = "Run all CI checks"
-depends = ["fmt:check", "clippy", "test", "build"]
+depends = ["fmt:check", "clippy", "test", "build", "schema:check"]
