@@ -15,6 +15,11 @@ pub struct Config {
 pub struct Variable {
     /// Human-readable description, rendered as a comment in output.
     pub description: Option<String>,
+    /// Tags for conditional inclusion. When `--tag` flags are passed on the
+    /// CLI, only variables with at least one matching tag (or no tags) are
+    /// included.
+    #[serde(default)]
+    pub tags: Vec<String>,
     /// Fallback source used when the requested environment has no entry in
     /// `envs`.
     pub default: Option<Source>,

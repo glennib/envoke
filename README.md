@@ -42,6 +42,7 @@ variables:
       literal: app
 
   DB_PASS:
+    tags: [secrets]
     envs:
       local:
         literal: devpassword
@@ -87,6 +88,7 @@ Each variable can have:
 | Field | Description |
 |-------|-------------|
 | `description` | Optional. Rendered as a `# comment` above the variable in output. |
+| `tags` | Optional. List of tags for conditional inclusion. Variable is only included when at least one of its tags is passed via `--tag`. Untagged variables are always included. |
 | `default` | Optional. Fallback source used when the target environment has no entry in `envs`. |
 | `envs` | Map of environment names to sources. |
 
@@ -180,6 +182,52 @@ LOG_LEVEL:
       literal: warn
 ```
 
+### Tags
+
+Variables can be tagged for conditional inclusion. When `--tag` flags are passed
+on the CLI, only variables with at least one matching tag (or no tags at all) are
+included. This is useful for skipping slow-to-resolve variables or optional
+components when they are not needed.
+
+```yaml
+variables:
+  DB_HOST:
+    default:
+      literal: localhost
+
+  VAULT_SECRET:
+    tags: [vault]
+    envs:
+      prod:
+        sh: vault kv get -field=secret secret/app
+      local:
+        literal: dev-secret
+
+  OAUTH_CLIENT_ID:
+    tags: [oauth]
+    envs:
+      prod:
+        sh: vault kv get -field=client_id secret/oauth
+      local:
+        literal: local-client-id
+```
+
+```sh
+# Only resolve vault-tagged variables (and all untagged ones):
+$ envoke local --tag vault
+DB_HOST='localhost'
+VAULT_SECRET='dev-secret'
+
+# Resolve everything (no filtering):
+$ envoke local
+DB_HOST='localhost'
+OAUTH_CLIENT_ID='local-client-id'
+VAULT_SECRET='dev-secret'
+```
+
+Variables without tags are always included regardless of which `--tag` flags are
+passed.
+
 ## CLI usage
 
 ```
@@ -191,6 +239,7 @@ envoke [OPTIONS] [ENVIRONMENT]
 | `ENVIRONMENT` | Target environment name (e.g. `local`, `prod`). Required unless `--schema` is used. |
 | `-c, --config <PATH>` | Path to config file. Default: `envoke.yaml`. |
 | `-o, --output <PATH>` | Write output to a file instead of stdout. Adds an `@generated` header with timestamp. |
+| `-t, --tag <TAG>` | Only include tagged variables with a matching tag. Repeatable. Untagged variables are always included. |
 | `--prepend-export` | Prefix each line with `export `. |
 | `--schema` | Print the JSON Schema for `envoke.yaml` and exit. |
 
@@ -221,14 +270,15 @@ variables:
 ## How it works
 
 1. Parse the YAML config file.
-2. For each variable, select the source matching the target environment (or the
-   default).
-3. Extract template dependencies and topologically sort all variables using
+2. Filter out variables excluded by `--tag` flags (if any).
+3. For each remaining variable, select the source matching the target environment
+   (or the default).
+4. Extract template dependencies and topologically sort all variables using
    Kahn's algorithm.
-4. Resolve values in dependency order -- literals are used as-is, commands and
+5. Resolve values in dependency order -- literals are used as-is, commands and
    shell scripts are executed, templates are rendered with already-resolved
    values.
-5. Output sorted `VAR='value'` lines with shell-safe escaping.
+6. Output sorted `VAR='value'` lines with shell-safe escaping.
 
 Circular dependencies and references to undefined variables are detected before
 any resolution begins and reported as errors.

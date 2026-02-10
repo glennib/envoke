@@ -21,6 +21,11 @@ struct Cli {
     #[arg(short, long)]
     output: Option<PathBuf>,
 
+    /// Only include tagged variables with a matching tag. Repeatable.
+    /// Untagged variables are always included.
+    #[arg(short = 't', long = "tag")]
+    tags: Vec<String>,
+
     /// Prefix each line with `export `.
     #[arg(long)]
     prepend_export: bool,
@@ -59,6 +64,7 @@ fn run() -> anyhow::Result<()> {
 
     // Default: generate
     {
+        let tags = cli.tags;
         let environment = cli.environment.expect("required by clap");
         let output = cli.output;
         let prepend_export = cli.prepend_export;
@@ -70,7 +76,7 @@ fn run() -> anyhow::Result<()> {
 
         eprintln!("Generating environment variables for {environment}...");
 
-        let resolved = resolve::resolve_all(&config, &environment).map_err(|errors| {
+        let resolved = resolve::resolve_all(&config, &environment, &tags).map_err(|errors| {
             for err in &errors {
                 eprintln!("error: {err}");
             }

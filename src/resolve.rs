@@ -282,11 +282,32 @@ fn resolve_source(
 ///
 /// Returns either all resolved values (in deterministic order) or all errors
 /// encountered.
-pub fn resolve_all(config: &Config, environment: &str) -> Result<Vec<Resolved>, Vec<ResolveError>> {
+///
+/// When `tags` is non-empty, only variables that are untagged or have at least
+/// one matching tag are included.
+pub fn resolve_all(
+    config: &Config,
+    environment: &str,
+    tags: &[String],
+) -> Result<Vec<Resolved>, Vec<ResolveError>> {
+    let active_tags: HashSet<&str> = tags.iter().map(String::as_str).collect();
     let mut sources: BTreeMap<String, SourceKind> = BTreeMap::new();
     let mut errors = Vec::new();
 
     for (name, variable) in &config.variables {
+        // Tag filtering: if CLI tags are active and the variable has tags,
+        // skip it unless at least one tag matches.
+        if !active_tags.is_empty()
+            && !variable.tags.is_empty()
+            && !variable
+                .tags
+                .iter()
+                .any(|t| active_tags.contains(t.as_str()))
+        {
+            debug!(variable = name.as_str(), "excluded by tag filter");
+            continue;
+        }
+
         let source = variable.envs.get(environment).or(variable.default.as_ref());
 
         match source {
@@ -402,6 +423,7 @@ mod tests {
     fn var(envs: BTreeMap<String, Source>) -> crate::config::Variable {
         crate::config::Variable {
             description: None,
+            tags: vec![],
             default: None,
             envs,
         }
@@ -413,7 +435,17 @@ mod tests {
     ) -> crate::config::Variable {
         crate::config::Variable {
             description: None,
+            tags: vec![],
             default: Some(default),
+            envs,
+        }
+    }
+
+    fn var_tagged(tags: Vec<&str>, envs: BTreeMap<String, Source>) -> crate::config::Variable {
+        crate::config::Variable {
+            description: None,
+            tags: tags.into_iter().map(ToOwned::to_owned).collect(),
+            default: None,
             envs,
         }
     }
@@ -443,7 +475,7 @@ mod tests {
                 v
             })]),
         };
-        let resolved = resolve_all(&config, "local").unwrap();
+        let resolved = resolve_all(&config, "local", &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "FOO");
         assert_eq!(resolved[0].value, "bar");
@@ -466,7 +498,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local").unwrap();
+        let resolved = resolve_all(&config, "local", &[]).unwrap();
         let greeting = resolved.iter().find(|r| r.name == "GREETING").unwrap();
         assert_eq!(greeting.value, "hello alice!");
     }
@@ -492,7 +524,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local").unwrap();
+        let resolved = resolve_all(&config, "local", &[]).unwrap();
         let conn = resolved.iter().find(|r| r.name == "CONN").unwrap();
         assert_eq!(conn.value, "alice:p%40ss%3Aword");
     }
@@ -505,7 +537,7 @@ mod tests {
                 var(BTreeMap::from([("prod".to_owned(), literal("x"))])),
             )]),
         };
-        let err = resolve_all(&config, "local").unwrap_err();
+        let err = resolve_all(&config, "local", &[]).unwrap_err();
         assert_eq!(err.len(), 1);
         assert!(matches!(err[0].kind, ResolveErrorKind::NoConfig));
     }
@@ -524,7 +556,7 @@ mod tests {
                 ),
             ]),
         };
-        let err = resolve_all(&config, "local").unwrap_err();
+        let err = resolve_all(&config, "local", &[]).unwrap_err();
         assert!(err
             .iter()
             .any(|e| matches!(&e.kind, ResolveErrorKind::CircularDependency { chain } if chain.len() >= 3)));
@@ -541,7 +573,7 @@ mod tests {
                 )])),
             )]),
         };
-        let err = resolve_all(&config, "local").unwrap_err();
+        let err = resolve_all(&config, "local", &[]).unwrap_err();
         assert!(err.iter().any(
             |e| matches!(&e.kind, ResolveErrorKind::UnknownReference { name } if name == "NONEXISTENT")
         ));
@@ -558,7 +590,7 @@ mod tests {
                 )])),
             )]),
         };
-        let resolved = resolve_all(&config, "local").unwrap();
+        let resolved = resolve_all(&config, "local", &[]).unwrap();
         assert_eq!(resolved[0].value, "hello");
     }
 
@@ -570,7 +602,7 @@ mod tests {
                 var_with_default(literal("fallback"), BTreeMap::new()),
             )]),
         };
-        let resolved = resolve_all(&config, "any-env").unwrap();
+        let resolved = resolve_all(&config, "any-env", &[]).unwrap();
         assert_eq!(resolved[0].value, "fallback");
     }
 
@@ -585,7 +617,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "local").unwrap();
+        let resolved = resolve_all(&config, "local", &[]).unwrap();
         assert_eq!(resolved[0].value, "override");
     }
 
@@ -607,7 +639,7 @@ mod tests {
                 ),
             ]),
         };
-        let err = resolve_all(&config, "local").unwrap_err();
+        let err = resolve_all(&config, "local", &[]).unwrap_err();
         let cycle = err
             .iter()
             .find_map(|e| match &e.kind {
@@ -642,7 +674,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local").unwrap();
+        let resolved = resolve_all(&config, "local", &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "KEEP");
     }
@@ -659,11 +691,11 @@ mod tests {
             )]),
         };
         // In staging, the env override provides a value.
-        let resolved = resolve_all(&config, "staging").unwrap();
+        let resolved = resolve_all(&config, "staging", &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].value, "yes");
         // In prod, the default skip applies — variable is omitted.
-        let resolved = resolve_all(&config, "prod").unwrap();
+        let resolved = resolve_all(&config, "prod", &[]).unwrap();
         assert!(resolved.is_empty());
     }
 
@@ -684,7 +716,7 @@ mod tests {
                 ),
             ]),
         };
-        let err = resolve_all(&config, "local").unwrap_err();
+        let err = resolve_all(&config, "local", &[]).unwrap_err();
         assert!(err.iter().any(
             |e| matches!(&e.kind, ResolveErrorKind::UnknownReference { name } if name == "SKIPPED")
         ));
@@ -698,7 +730,228 @@ mod tests {
                 var(BTreeMap::from([("local".to_owned(), sh("echo hello"))])),
             )]),
         };
-        let resolved = resolve_all(&config, "local").unwrap();
+        let resolved = resolve_all(&config, "local", &[]).unwrap();
         assert_eq!(resolved[0].value, "hello");
+    }
+
+    // --- Tag filtering tests ---
+
+    #[test]
+    fn test_no_cli_tags_includes_all() {
+        let config = Config {
+            variables: BTreeMap::from([
+                (
+                    "UNTAGGED".to_owned(),
+                    var(BTreeMap::from([("local".to_owned(), literal("a"))])),
+                ),
+                (
+                    "TAGGED".to_owned(),
+                    var_tagged(
+                        vec!["vault"],
+                        BTreeMap::from([("local".to_owned(), literal("b"))]),
+                    ),
+                ),
+            ]),
+        };
+        let resolved = resolve_all(&config, "local", &[]).unwrap();
+        assert_eq!(resolved.len(), 2);
+    }
+
+    #[test]
+    fn test_cli_tags_match_includes_variable() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "SECRET".to_owned(),
+                var_tagged(
+                    vec!["vault"],
+                    BTreeMap::from([("local".to_owned(), literal("s3cret"))]),
+                ),
+            )]),
+        };
+        let resolved = resolve_all(&config, "local", &["vault".to_owned()]).unwrap();
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].value, "s3cret");
+    }
+
+    #[test]
+    fn test_cli_tags_no_match_excludes_variable() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "SECRET".to_owned(),
+                var_tagged(
+                    vec!["vault"],
+                    BTreeMap::from([("local".to_owned(), literal("s3cret"))]),
+                ),
+            )]),
+        };
+        let resolved = resolve_all(&config, "local", &["oauth".to_owned()]).unwrap();
+        assert!(resolved.is_empty());
+    }
+
+    #[test]
+    fn test_untagged_always_included_with_cli_tags() {
+        let config = Config {
+            variables: BTreeMap::from([
+                (
+                    "ALWAYS".to_owned(),
+                    var(BTreeMap::from([("local".to_owned(), literal("yes"))])),
+                ),
+                (
+                    "CONDITIONAL".to_owned(),
+                    var_tagged(
+                        vec!["vault"],
+                        BTreeMap::from([("local".to_owned(), literal("maybe"))]),
+                    ),
+                ),
+            ]),
+        };
+        let resolved = resolve_all(&config, "local", &["other".to_owned()]).unwrap();
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].name, "ALWAYS");
+    }
+
+    #[test]
+    fn test_or_semantics_one_tag_matches() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "MULTI".to_owned(),
+                var_tagged(
+                    vec!["a", "b", "c"],
+                    BTreeMap::from([("local".to_owned(), literal("val"))]),
+                ),
+            )]),
+        };
+        let resolved = resolve_all(&config, "local", &["b".to_owned()]).unwrap();
+        assert_eq!(resolved.len(), 1);
+    }
+
+    #[test]
+    fn test_multiple_cli_tags() {
+        let config = Config {
+            variables: BTreeMap::from([
+                (
+                    "VAULT_VAR".to_owned(),
+                    var_tagged(
+                        vec!["vault"],
+                        BTreeMap::from([("local".to_owned(), literal("v"))]),
+                    ),
+                ),
+                (
+                    "OAUTH_VAR".to_owned(),
+                    var_tagged(
+                        vec!["oauth"],
+                        BTreeMap::from([("local".to_owned(), literal("o"))]),
+                    ),
+                ),
+                (
+                    "OTHER_VAR".to_owned(),
+                    var_tagged(
+                        vec!["other"],
+                        BTreeMap::from([("local".to_owned(), literal("x"))]),
+                    ),
+                ),
+            ]),
+        };
+        let resolved =
+            resolve_all(&config, "local", &["vault".to_owned(), "oauth".to_owned()]).unwrap();
+        assert_eq!(resolved.len(), 2);
+        let names: Vec<&str> = resolved.iter().map(|r| r.name.as_str()).collect();
+        assert!(names.contains(&"VAULT_VAR"));
+        assert!(names.contains(&"OAUTH_VAR"));
+    }
+
+    #[test]
+    fn test_excluded_variable_in_template_causes_error() {
+        let config = Config {
+            variables: BTreeMap::from([
+                (
+                    "SECRET".to_owned(),
+                    var_tagged(
+                        vec!["vault"],
+                        BTreeMap::from([("local".to_owned(), literal("s3cret"))]),
+                    ),
+                ),
+                (
+                    "CONN".to_owned(),
+                    var(BTreeMap::from([(
+                        "local".to_owned(),
+                        template("dsn://{{ SECRET }}@host"),
+                    )])),
+                ),
+            ]),
+        };
+        // SECRET is excluded by tag filter, so CONN's template reference fails
+        let err = resolve_all(&config, "local", &["other".to_owned()]).unwrap_err();
+        assert!(err.iter().any(
+            |e| matches!(&e.kind, ResolveErrorKind::UnknownReference { name } if name == "SECRET")
+        ));
+    }
+
+    #[test]
+    fn test_empty_tags_behaves_as_untagged() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "VAR".to_owned(),
+                crate::config::Variable {
+                    description: None,
+                    tags: vec![],
+                    default: None,
+                    envs: BTreeMap::from([("local".to_owned(), literal("val"))]),
+                },
+            )]),
+        };
+        let resolved = resolve_all(&config, "local", &["something".to_owned()]).unwrap();
+        assert_eq!(resolved.len(), 1);
+    }
+
+    #[test]
+    fn test_tag_filtering_and_skip_are_orthogonal() {
+        let config = Config {
+            variables: BTreeMap::from([
+                (
+                    "TAGGED_SKIP".to_owned(),
+                    var_tagged(
+                        vec!["vault"],
+                        BTreeMap::from([("local".to_owned(), skip())]),
+                    ),
+                ),
+                (
+                    "TAGGED_KEEP".to_owned(),
+                    var_tagged(
+                        vec!["vault"],
+                        BTreeMap::from([("local".to_owned(), literal("kept"))]),
+                    ),
+                ),
+            ]),
+        };
+        let resolved = resolve_all(&config, "local", &["vault".to_owned()]).unwrap();
+        // TAGGED_SKIP is included by tag but skipped by source
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].name, "TAGGED_KEEP");
+    }
+
+    #[test]
+    fn test_tag_excluded_variable_no_config_no_error() {
+        let config = Config {
+            variables: BTreeMap::from([
+                (
+                    "ALWAYS".to_owned(),
+                    var(BTreeMap::from([("local".to_owned(), literal("yes"))])),
+                ),
+                (
+                    "PROD_ONLY".to_owned(),
+                    var_tagged(
+                        vec!["prod-secrets"],
+                        // No config for "local" environment, and no default
+                        BTreeMap::from([("prod".to_owned(), literal("secret"))]),
+                    ),
+                ),
+            ]),
+        };
+        // Without tag filtering, PROD_ONLY would cause NoConfig for "local".
+        // With tag filtering excluding it, no error occurs.
+        let resolved = resolve_all(&config, "local", &["other".to_owned()]).unwrap();
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].name, "ALWAYS");
     }
 }

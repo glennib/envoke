@@ -72,6 +72,14 @@
           },
           "description": "Map of environment names to value sources.",
           "type": "object"
+        },
+        "tags": {
+          "default": [],
+          "description": "Tags for conditional inclusion. When `--tag` flags are passed on the\nCLI, only variables with at least one matching tag (or no tags) are\nincluded.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "type": "object"
