@@ -1,0 +1,17 @@
+[package]
+name = "envoke"
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/glennib/envoke"
+description = "Resolve environment variables from a declarative YAML config file"
+license = "MIT OR Apache-2.0"
+authors = ["Glenn Bitar <glennbitar@gmail.com>"]
+
+[profile.release]
+strip = true
+lto = "fat"
+codegen-units = 1
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
