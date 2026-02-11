@@ -42,7 +42,6 @@ variables:
       literal: app
 
   DB_PASS:
-    tags: [secrets]
     envs:
       local:
         literal: devpassword
