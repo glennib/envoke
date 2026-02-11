@@ -77,8 +77,8 @@ fn run() -> anyhow::Result<()> {
 
         let yaml = fs::read_to_string(&cli.config)
             .with_context(|| format!("failed to read {}", cli.config.display()))?;
-        let config: config::Config =
-            serde_yaml::from_str(&yaml).context("failed to parse envoke.yaml")?;
+        let config: config::Config = serde_yaml::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", cli.config.display()))?;
 
         eprintln!("Generating environment variables for {environment}...");
 
