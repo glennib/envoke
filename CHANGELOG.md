@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0](https://github.com/glennib/envoke/compare/v0.1.6...v1.0.0) - 2026-02-11
+
+First stable release. Envoke resolves variables from a declarative YAML
+configuration file. The default output is shell-safe environment variable
+assignments, but custom output templates are also supported.
+
+### Features
+
+- **Five source types**: `literal` (fixed values), `cmd` (run a command),
+  `sh` (run a shell script), `template` (Jinja2 with variable interpolation),
+  and `skip` (omit a variable from output).
+- **Per-environment sources**: define different sources per environment name
+  with a `default` fallback.
+- **Tag-based conditional inclusion**: variables can carry `tags`; untagged
+  variables are always included, tagged variables require an explicit `--tag`
+  match (OR semantics).
+- **Named overrides** (`--override`): per-variable alternative source sets
+  with a 4-level fallback chain (override env, override default, base env,
+  base default). Multiple overrides allowed on disjoint variables; conflicting
+  overrides on the same variable are rejected.
+- **Dependency resolution**: templates reference other variables via
+  `{{ VAR }}`; dependencies are topologically sorted (Kahn's algorithm) and
+  cycles are detected with full chain reporting before any execution.
+- **Output formats**: built-in default (`VAR='value'`), built-in export
+  (`export VAR='value'` via `--prepend-export`), or a custom Jinja2 template
+  file (`--template`). Output includes an `@generated` header with invocation
+  and timestamp. Variables are sorted alphabetically.
+- **Custom template context**: templates receive `variables` (with value and
+  description), `v` (flat name-to-value map), and `meta` (timestamp,
+  invocation, environment, config file path).
+- **Filters**: `urlencode` in variable templates; `shell_escape` in output
+  templates.
+- **JSON Schema generation** (`--schema`): produces a JSON Schema for
+  `envoke.yaml` for editor autocompletion and validation.
+- **Shell safety**: values are single-quoted with embedded quotes escaped.
+- **Comprehensive error reporting**: all errors collected and reported
+  together (not fail-fast), with 8 structured error kinds including cycle
+  chains, conflicting overrides, unknown references, and command failures.
+- **CLI flags**: `-c` (config path), `-o` (output file), `-t/--tag`,
+  `-O/--override`, `--prepend-export`, `--template`, `--schema`,
+  `-q/--quiet`, `--version`.
+
+### Changes since 0.1.6
+
+#### Added
+
+- add --quiet flag to suppress status messages
+- add --version flag
+
+#### Fixed
+
+- update schema file
+- make --schema respect -o flag
+- include environment in cycle and reference errors
+- reject empty cmd source
+- use actual config path in parse error message
+- correct template doc comment and regenerate schema
+
+#### Other
+
+- fmt
+- update installation instructions in README
+
 ## [0.1.6](https://github.com/glennib/envoke/compare/v0.1.5...v0.1.6) - 2026-02-11
 
 ### Other
