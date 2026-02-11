@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6](https://github.com/glennib/envoke/compare/v0.1.5...v0.1.6) - 2026-02-11
+
+### Other
+
+- improve readme and cargo description
+- remove deprecation from --prepend-export
+- improve readme
+- improve env examples
+
 ## [0.1.5](https://github.com/glennib/envoke/compare/v0.1.4...v0.1.5) - 2026-02-11
 
 ### Added
