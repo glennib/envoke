@@ -60,7 +60,7 @@
           ]
         },
         "template": {
-          "description": "A string with `{VAR_NAME}` placeholders resolved from other variables.",
+          "description": "A minijinja (Jinja2) template string. Reference other variables with `{{ VAR_NAME }}`.",
           "type": [
             "string",
             "null"
