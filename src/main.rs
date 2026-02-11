@@ -66,7 +66,12 @@ fn run() -> anyhow::Result<()> {
     if cli.schema {
         let schema = schemars::schema_for!(config::Config);
         let json = serde_json::to_string_pretty(&schema).context("failed to serialize schema")?;
-        println!("{json}");
+        if let Some(path) = &cli.output {
+            fs::write(path, &json)
+                .with_context(|| format!("failed to write {}", path.display()))?;
+        } else {
+            println!("{json}");
+        }
         return Ok(());
     }
 
