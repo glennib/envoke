@@ -14,7 +14,8 @@ mod resolve;
 #[command(about = "Resolve environment variables from envoke.yaml", version)]
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
-    /// Target environment (e.g. local, prod).
+    /// Target environment (e.g. local, prod). Not required with --schema or
+    /// --list-* flags.
     #[arg(required_unless_present_any = ["schema", "list_environments", "list_overrides", "list_tags"])]
     environment: Option<String>,
 
@@ -32,8 +33,7 @@ struct Cli {
     #[arg(short = 'O', long = "override")]
     overrides: Vec<String>,
 
-    /// Switches to a built-in template that prefixes each variable with `export
-    /// `. Ignored when `--template` is used.
+    /// Prefix each line with `export`. Ignored when `--template` is used.
     #[arg(long)]
     prepend_export: bool,
 
@@ -42,9 +42,35 @@ struct Cli {
     config: PathBuf,
 
     /// Use a custom output template file instead of the built-in format.
-    /// The template uses Jinja2 syntax (minijinja) and has access to
-    /// `variables`, `v`, and `meta` context objects. See README for details.
-    #[arg(long)]
+    #[arg(
+        long,
+        long_help = "\
+Use a custom output template file instead of the built-in format.
+The template uses Jinja2 syntax (minijinja).
+
+Template context:
+
+  variables  Map of name -> {value, description}. Iterate with:
+               {% for name, var in variables | items %}
+             Access fields: {{ variables.DB_URL.value }}
+
+  v          Flat map of name -> value string. Shorthand:
+               {{ v.DB_URL }}
+
+  meta       Invocation metadata:
+               meta.timestamp        RFC 3339 timestamp
+               meta.invocation       Full CLI invocation string
+               meta.invocation_args  CLI args as a list
+               meta.environment      Target environment name
+               meta.config_file      Path to the config file
+
+Available filters:
+
+  shell_escape  Escapes single quotes for shell safety
+
+Note: the urlencode filter is only available in resolution templates
+(the `template` source type), not in output templates."
+    )]
     template: Option<PathBuf>,
 
     /// Print the JSON Schema for envoke.yaml and exit.

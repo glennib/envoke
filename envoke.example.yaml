@@ -36,6 +36,7 @@ variables:
       cmd: [hostname]
 
   # --- sh: run a shell script ---
+  # Note: `date` format strings may vary across systems (e.g. GNU vs BSD).
   BUILD_DATE:
     description: ISO 8601 build timestamp
     default:
@@ -132,12 +133,13 @@ variables:
           prod:
             literal: lfu-with-prefetch
 
-  # DATABASE_HOST (defined above) also participates in overrides:
+  # DATABASE_HOST (defined above) can also have overrides. The definition
+  # below is commented out because DATABASE_HOST already appears above —
+  # merge this `overrides` block into that definition to use it.
+  #
   # When --override read-replica is active, the host changes;
   # DATABASE_PORT, DATABASE_USER, etc. are unaffected and fall through
   # to their base sources, so DATABASE_URL recomputes automatically.
-  #
-  # To add overrides to DATABASE_HOST, merge this into the definition above:
   #
   #   DATABASE_HOST:
   #     default:

@@ -12,10 +12,15 @@ const DEFAULT_EXPORT_TEMPLATE: &str = include_str!("templates/default-export.sh.
 /// Metadata about the current invocation, exposed to templates as `meta`.
 #[derive(serde::Serialize)]
 pub struct Meta {
+    /// RFC 3339 timestamp of when the invocation started.
     pub timestamp: String,
+    /// Full CLI invocation as a single string (e.g. `"envoke local"`).
     pub invocation: String,
+    /// CLI arguments as individual elements.
     pub invocation_args: Vec<String>,
+    /// Target environment name.
     pub environment: String,
+    /// Path to the config file used.
     pub config_file: String,
 }
 
@@ -28,7 +33,9 @@ struct VariableEntry {
 
 /// Everything needed to render output.
 pub struct RenderContext {
+    /// Resolved variables in alphabetical order.
     pub resolved: Vec<Resolved>,
+    /// Invocation metadata exposed as `meta` in templates.
     pub meta: Meta,
 }
 

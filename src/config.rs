@@ -13,6 +13,9 @@ pub struct Config {
 }
 
 /// A single environment variable with per-environment sources.
+///
+/// Resolution requires either an `envs` entry matching the target environment
+/// or a `default`. If neither exists, resolution fails with a `NoConfig` error.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct Variable {
     /// Human-readable description, rendered as a comment in output.
@@ -58,14 +61,17 @@ pub struct Override {
 pub enum Source {
     /// A fixed string value.
     Literal(String),
-    /// A command to execute; stdout is captured and trimmed.
+    /// A command to execute; stdout is captured with trailing whitespace
+    /// stripped.
     Cmd(Vec<String>),
-    /// A shell script to execute via `sh -c`; stdout is captured and trimmed.
+    /// A shell script to execute via `sh -c`; stdout is captured with trailing
+    /// whitespace stripped.
     Sh(String),
     /// A minijinja (Jinja2) template string. Reference other variables with
     /// `{{ VAR_NAME }}`.
     Template(String),
-    /// When `true`, the variable is silently omitted from output.
+    /// When `true`, the variable is silently omitted from output. Must be
+    /// `true` when specified; `skip: false` is rejected by validation.
     Skip(bool),
 }
 

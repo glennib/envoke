@@ -85,8 +85,9 @@ DB_URL='postgresql://app:devpassword@localhost/mydb'
 DB_USER='app'
 ```
 
-> **Note:** All output includes an `@generated` header with the invocation command
-> and timestamp. Examples below omit this header for brevity.
+> **Note:** Output is sorted alphabetically by variable name. All output includes
+> an `@generated` header with the invocation command and timestamp. Examples below
+> omit this header for brevity.
 
 Source them into your shell:
 
@@ -336,14 +337,18 @@ envoke [OPTIONS] [ENVIRONMENT]
 
 | Option | Description |
 |--------|-------------|
-| `ENVIRONMENT` | Target environment name (e.g. `local`, `prod`). Required unless `--schema` is used. |
+| `ENVIRONMENT` | Target environment name (e.g. `local`, `prod`). Required unless `--schema` or `--list-*` flags are used. |
 | `-c, --config <PATH>` | Path to config file. Default: `envoke.yaml`. |
-| `-o, --output <PATH>` | Write output to a file instead of stdout. |
+| `-o, --output <PATH>` | Write output to a file instead of stdout. Also works with `--schema`. |
 | `-t, --tag <TAG>` | Only include tagged variables with a matching tag. Repeatable. Untagged variables are always included. |
 | `-O, --override <NAME>` | Activate a named override for source selection. Repeatable. Per variable, at most one active override may be defined. |
-| `--prepend-export` | Switches to a built-in template that prefixes each variable with `export `. Ignored when `--template` is used. |
-| `--template <PATH>` | Use a custom output template file instead of the built-in format. |
+| `--prepend-export` | Prefix each line with `export`. Ignored when `--template` is used. |
+| `--template <PATH>` | Use a custom output template file instead of the built-in format. See [Custom templates](#custom-templates). |
 | `--schema` | Print the JSON Schema for `envoke.yaml` and exit. |
+| `--list-environments` | List all environment names found in the config and exit. |
+| `--list-overrides` | List all override names found in the config and exit. |
+| `--list-tags` | List all tag names found in the config and exit. |
+| `-q, --quiet` | Suppress informational messages on stderr. |
 
 ### JSON Schema
 
@@ -417,6 +422,9 @@ The template receives the following variables:
 
 - `shell_escape` -- escapes single quotes for shell safety (`'` -> `'\''`).
 
+> **Note:** The `urlencode` filter is available in _resolution_ templates (the
+> `template` source type) but not in custom _output_ templates.
+
 ### Example: JSON output
 
 ```jinja2
@@ -429,6 +437,10 @@ The template receives the following variables:
 envoke local --template json.j2
 ```
 
+> **Note:** This simplified example does not escape JSON special characters
+> (`"`, `\`, newlines) in values. For production use, consider a template that
+> handles escaping.
+
 ### Example: Docker .env format
 
 ```jinja2
@@ -437,6 +449,10 @@ envoke local --template json.j2
 {{ name }}={{ v[name] }}
 {% endfor -%}
 ```
+
+> **Note:** This simplified example does not quote or escape values. Values
+> containing `=`, `#`, or whitespace may not parse correctly in all `.env`
+> implementations.
 
 ## Development
 
@@ -457,6 +473,18 @@ Run a single test:
 ```sh
 cargo nextest run -E 'test(test_name)'
 ```
+
+### Debugging
+
+envoke uses [tracing](https://docs.rs/tracing) for diagnostic output. Set the
+`RUST_LOG` environment variable to see debug messages on stderr:
+
+```sh
+RUST_LOG=debug envoke local
+```
+
+This is useful for troubleshooting tag filtering, override fallback chains, and
+source resolution order.
 
 ## License
 

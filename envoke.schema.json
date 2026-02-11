@@ -44,7 +44,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A command to execute; stdout is captured and trimmed.",
+          "description": "A command to execute; stdout is captured with trailing whitespace\nstripped.",
           "properties": {
             "cmd": {
               "items": {
@@ -60,7 +60,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A shell script to execute via `sh -c`; stdout is captured and trimmed.",
+          "description": "A shell script to execute via `sh -c`; stdout is captured with trailing\nwhitespace stripped.",
           "properties": {
             "sh": {
               "type": "string"
@@ -86,7 +86,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "When `true`, the variable is silently omitted from output.",
+          "description": "When `true`, the variable is silently omitted from output. Must be\n`true` when specified; `skip: false` is rejected by validation.",
           "properties": {
             "skip": {
               "type": "boolean"
@@ -100,7 +100,7 @@
       ]
     },
     "Variable": {
-      "description": "A single environment variable with per-environment sources.",
+      "description": "A single environment variable with per-environment sources.\n\nResolution requires either an `envs` entry matching the target environment\nor a `default`. If neither exists, resolution fails with a `NoConfig` error.",
       "properties": {
         "default": {
           "anyOf": [

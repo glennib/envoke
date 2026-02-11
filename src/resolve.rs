@@ -20,7 +20,7 @@ pub struct Resolved {
     pub description: Option<String>,
 }
 
-/// Extract variable references from a `MiniJinja` template string.
+/// Extract variable references from a minijinja template string.
 fn template_references(tmpl: &str) -> Result<HashSet<String>, minijinja::Error> {
     let env = minijinja::Environment::new();
     let parsed = env.template_from_str(tmpl)?;

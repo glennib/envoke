@@ -3,12 +3,18 @@ fn format_cycle(chain: &[String]) -> String {
 }
 
 fn format_override_names(names: &[String]) -> String {
-    names
-        .iter()
-        .map(|n| format!("'{n}'"))
-        .collect::<Vec<_>>()
-        .join(" and ")
-        + " both define sources for this variable"
+    let quoted: Vec<String> = names.iter().map(|n| format!("'{n}'")).collect();
+    let list = match quoted.as_slice() {
+        [] => String::new(),
+        [single] => single.clone(),
+        [a, b] => format!("{a} and {b}"),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    };
+    if names.len() > 2 {
+        format!("{list} all define sources for this variable")
+    } else {
+        format!("{list} both define sources for this variable")
+    }
 }
 
 /// Errors that occur during variable resolution.
@@ -25,12 +31,12 @@ pub struct ResolveError {
 pub enum ResolveErrorKind {
     #[error("no configuration for this environment")]
     NoConfig,
-    #[error("command failed: {reason}")]
+    #[error("command `{command:?}` failed: {reason}")]
     CmdFailed {
         command: Vec<String>,
         reason: String,
     },
-    #[error("command exited with {exit_code:?}: {stderr}")]
+    #[error("command `{command:?}` exited with {exit_code:?}: {stderr}")]
     CmdNonZero {
         command: Vec<String>,
         exit_code: Option<i32>,
