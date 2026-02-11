@@ -73,13 +73,13 @@ DB_USER='app'
 Source them into your shell:
 
 ```sh
-eval "$(envoke local)"
+eval "$(envoke local --prepend-export)"
 ```
 
 Or write them to a file:
 
 ```sh
-envoke local --output .env --prepend-export
+envoke local --output .env
 ```
 
 ## Configuration
@@ -323,7 +323,8 @@ envoke [OPTIONS] [ENVIRONMENT]
 | `-o, --output <PATH>` | Write output to a file instead of stdout. |
 | `-t, --tag <TAG>` | Only include tagged variables with a matching tag. Repeatable. Untagged variables are always included. |
 | `-O, --override <NAME>` | Activate a named override for source selection. Repeatable. Per variable, at most one active override may be defined. |
-| `--prepend-export` | Prefix each line with `export `. |
+| `--prepend-export` | **Deprecated.** Switches to a built-in template that prefixes each variable with `export `. Prefer `--template` with a custom template instead. |
+| `--template <PATH>` | Use a custom output template file instead of the built-in format. |
 | `--schema` | Print the JSON Schema for `envoke.yaml` and exit. |
 
 ### JSON Schema
@@ -362,11 +363,62 @@ variables:
 5. Resolve values in dependency order -- literals are used as-is, commands and
    shell scripts are executed, templates are rendered with already-resolved
    values.
-6. Output an `@generated` header (with invocation and timestamp) followed by
-   sorted `VAR='value'` lines with shell-safe escaping.
+6. Render output using a built-in or custom Jinja2 template (see
+   [Custom templates](#custom-templates)). The default template produces an
+   `@generated` header followed by sorted `VAR='value'` lines with shell-safe
+   escaping.
 
 Circular dependencies and references to undefined variables are detected before
 any resolution begins and reported as errors.
+
+## Custom templates
+
+By default, envoke outputs shell `VAR='value'` lines with an `@generated`
+header. You can supply your own [minijinja](https://github.com/mitsuhiko/minijinja)
+(Jinja2-compatible) template via `--template`:
+
+```sh
+envoke local --template my-template.j2
+```
+
+### Template context
+
+The template receives the following variables:
+
+| Name | Type | Description |
+|------|------|-------------|
+| `variables` | map of name -> `{value, description}` | Rich access: `{{ variables.DB_URL.value }}`. Iteration: `{% for name, var in variables \| items %}`. Sorted alphabetically. |
+| `v` | map of name -> value string | Flat shorthand: `{{ v.DATABASE_URL }}`. |
+| `meta.timestamp` | string | RFC 3339 timestamp of invocation. |
+| `meta.invocation` | string | Full CLI invocation as a single string. |
+| `meta.invocation_args` | list of strings | CLI args as individual elements. |
+| `meta.environment` | string | Target environment name. |
+| `meta.config_file` | string | Path to the config file used. |
+
+### Filters
+
+- `shell_escape` -- escapes single quotes for shell safety (`'` -> `'\''`).
+
+### Example: JSON output
+
+```jinja2
+{
+{% for name, var in variables | items %}  "{{ name }}": "{{ var.value }}"{% if not loop.last %},{% endif %}
+{% endfor %}}
+```
+
+```sh
+envoke local --template json.j2
+```
+
+### Example: Docker .env format
+
+```jinja2
+# Generated for {{ meta.environment }}
+{% for name, var in variables | items -%}
+{{ name }}={{ v[name] }}
+{% endfor -%}
+```
 
 ## Development
 

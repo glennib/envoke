@@ -13,7 +13,7 @@ use crate::error::ResolveError;
 use crate::error::ResolveErrorKind;
 
 /// A successfully resolved variable with its value and optional description.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct Resolved {
     pub name: String,
     pub value: String,
