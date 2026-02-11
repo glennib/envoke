@@ -57,7 +57,8 @@ pub struct Source {
     pub cmd: Option<Vec<String>>,
     /// A shell script to execute via `sh -c`; stdout is captured and trimmed.
     pub sh: Option<String>,
-    /// A minijinja (Jinja2) template string. Reference other variables with `{{ VAR_NAME }}`.
+    /// A minijinja (Jinja2) template string. Reference other variables with `{{
+    /// VAR_NAME }}`.
     pub template: Option<String>,
     /// When `true`, the variable is silently omitted from output.
     pub skip: Option<bool>,
