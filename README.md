@@ -91,6 +91,7 @@ Each variable can have:
 | `tags` | Optional. List of tags for conditional inclusion. Variable is only included when at least one of its tags is passed via `--tag`. Untagged variables are always included. |
 | `default` | Optional. Fallback source used when the target environment has no entry in `envs`. |
 | `envs` | Map of environment names to sources. |
+| `overrides` | Optional. Map of override names to alternative source definitions (each with its own `default`/`envs`). Activated via `--override`. |
 
 A variable must have either an `envs` entry matching the target environment or a
 `default`. If neither exists, resolution fails with an error.
@@ -232,6 +233,77 @@ VAULT_SECRET='dev-secret'
 Variables without tags are always included regardless of which `--tag` flags are
 passed. Tagged variables require explicit opt-in.
 
+### Overrides
+
+Overrides add a third dimension for varying values alongside environments and
+tags. A variable can declare named overrides, each with its own `default`/`envs`
+sources. Activate them with `--override`:
+
+```yaml
+variables:
+  DATABASE_HOST:
+    default:
+      literal: localhost
+    envs:
+      prod:
+        literal: 172.10.0.1
+    overrides:
+      read-replica:
+        default:
+          literal: localhost-ro
+        envs:
+          prod:
+            literal: 172.10.0.2
+
+  CACHE_STRATEGY:
+    envs:
+      prod:
+        literal: lru
+    overrides:
+      aggressive-cache:
+        envs:
+          prod:
+            literal: lfu-with-prefetch
+
+  DATABASE_PORT:
+    default:
+      literal: "5432"
+    # No overrides -- unaffected by --override flag
+```
+
+```sh
+# Base values:
+$ envoke prod
+CACHE_STRATEGY='lru'
+DATABASE_HOST='172.10.0.1'
+DATABASE_PORT='5432'
+
+# Activate an override:
+$ envoke prod --override read-replica
+CACHE_STRATEGY='lru'
+DATABASE_HOST='172.10.0.2'
+DATABASE_PORT='5432'
+
+# Multiple overrides on disjoint variables:
+$ envoke prod --override read-replica --override aggressive-cache
+CACHE_STRATEGY='lfu-with-prefetch'
+DATABASE_HOST='172.10.0.2'
+DATABASE_PORT='5432'
+```
+
+When an override is active for a variable, the source is selected using a
+4-level fallback chain:
+
+1. Override `envs[environment]`
+2. Override `default`
+3. Base `envs[environment]`
+4. Base `default`
+
+Variables without a matching override definition are unaffected and use the
+normal base fallback. If multiple active overrides are defined on the same
+variable, envoke reports an error. Unknown override names (not defined on any
+variable) produce a warning on stderr.
+
 ## CLI usage
 
 ```
@@ -244,6 +316,7 @@ envoke [OPTIONS] [ENVIRONMENT]
 | `-c, --config <PATH>` | Path to config file. Default: `envoke.yaml`. |
 | `-o, --output <PATH>` | Write output to a file instead of stdout. Adds an `@generated` header with timestamp. |
 | `-t, --tag <TAG>` | Only include tagged variables with a matching tag. Repeatable. Untagged variables are always included. |
+| `-O, --override <NAME>` | Activate a named override for source selection. Repeatable. Per variable, at most one active override may be defined. |
 | `--prepend-export` | Prefix each line with `export `. |
 | `--schema` | Print the JSON Schema for `envoke.yaml` and exit. |
 
@@ -276,7 +349,8 @@ variables:
 1. Parse the YAML config file.
 2. Filter out variables excluded by `--tag` flags (if any).
 3. For each remaining variable, select the source matching the target environment
-   (or the default).
+   (or the default), applying the override fallback chain if `--override` flags
+   are active.
 4. Extract template dependencies and topologically sort all variables using
    Kahn's algorithm.
 5. Resolve values in dependency order -- literals are used as-is, commands and

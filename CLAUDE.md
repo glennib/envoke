@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Envoke is a CLI tool that resolves environment variables from a declarative YAML configuration file (`envoke.yaml`). It supports multiple value sources (literal, command execution, shell scripts, Jinja2 templates with variable interpolation), tag-based conditional inclusion, topologically sorts variables to resolve dependencies, and outputs shell-safe `VAR='value'` lines.
+Envoke is a CLI tool that resolves environment variables from a declarative YAML configuration file (`envoke.yaml`). It supports multiple value sources (literal, command execution, shell scripts, Jinja2 templates with variable interpolation), tag-based conditional inclusion, named overrides for per-variable source alternatives, topologically sorts variables to resolve dependencies, and outputs shell-safe `VAR='value'` lines.
 
 ## Build & Development Commands
 
@@ -28,10 +28,10 @@ Formatting uses nightly features (`rustfmt.toml` has `style_edition = "2024"`). 
 
 The codebase is a single Rust binary with three modules:
 
-- **`main.rs`** -- CLI (clap), reads YAML config, orchestrates resolution, formats shell-escaped output. Supports `--output` file writing (with `@generated` header), `--prepend-export`, `--tag` (conditional inclusion), and `--schema` (JSON Schema output).
-- **`config.rs`** -- Data model: `Config` (top-level), `Variable` (per-env sources + optional default/description/tags), `Source` (one-of: literal/cmd/sh/template/skip), `SourceKind` (validated variant). Derives `JsonSchema` via `schemars`.
-- **`resolve.rs`** -- Core logic (~700 lines). `resolve_all()` picks per-environment sources (with default fallback), topologically sorts via Kahn's algorithm, resolves values in dependency order. Template rendering uses `minijinja` (supports `urlencode` filter). Contains the test suite (~25 tests).
-- **`error.rs`** -- `ResolveError` with structured `ResolveErrorKind` variants (7 types including cycle detection with chain).
+- **`main.rs`** -- CLI (clap), reads YAML config, orchestrates resolution, formats shell-escaped output. Supports `--output` file writing (with `@generated` header), `--prepend-export`, `--tag` (conditional inclusion), `--override` (per-variable source overrides), and `--schema` (JSON Schema output).
+- **`config.rs`** -- Data model: `Config` (top-level), `Variable` (per-env sources + optional default/description/tags/overrides), `Override` (alternative default/envs sources), `Source` (one-of: literal/cmd/sh/template/skip), `SourceKind` (validated variant). Derives `JsonSchema` via `schemars`.
+- **`resolve.rs`** -- Core logic. `resolve_all()` picks per-environment sources (with default fallback and override 4-level fallback chain), topologically sorts via Kahn's algorithm, resolves values in dependency order. Template rendering uses `minijinja` (supports `urlencode` filter). Contains the test suite (~39 tests).
+- **`error.rs`** -- `ResolveError` with structured `ResolveErrorKind` variants (8 types including cycle detection with chain and conflicting overrides).
 
 ## Code Style
 
