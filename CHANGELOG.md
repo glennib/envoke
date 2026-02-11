@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/glennib/envoke/compare/v0.1.3...v0.1.4) - 2026-02-11
+
+### Added
+
+- include @generated header in stdout output
+- add --override flag for per-variable source overrides
+
+### Other
+
+- update CLAUDE.md and README.md
+- add example file
+
 ## [0.1.3](https://github.com/glennib/envoke/compare/v0.1.2...v0.1.3) - 2026-02-10
 
 ### Fixed
