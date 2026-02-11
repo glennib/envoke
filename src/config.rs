@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -97,5 +98,209 @@ impl Source {
             }
             _ => Err("only one of `literal`, `cmd`, `sh`, `template`, or `skip` may be specified"),
         }
+    }
+}
+
+impl Config {
+    /// Returns sorted, deduplicated environment names found across all
+    /// variables' `envs` maps and override `envs` maps.
+    pub fn environments(&self) -> Vec<String> {
+        let mut set = BTreeSet::new();
+        for var in self.variables.values() {
+            set.extend(var.envs.keys().cloned());
+            for ovr in var.overrides.values() {
+                set.extend(ovr.envs.keys().cloned());
+            }
+        }
+        set.into_iter().collect()
+    }
+
+    /// Returns sorted, deduplicated override names found across all variables.
+    pub fn override_names(&self) -> Vec<String> {
+        let mut set = BTreeSet::new();
+        for var in self.variables.values() {
+            set.extend(var.overrides.keys().cloned());
+        }
+        set.into_iter().collect()
+    }
+
+    /// Returns sorted, deduplicated tag names found across all variables.
+    pub fn tag_names(&self) -> Vec<String> {
+        let mut set = BTreeSet::new();
+        for var in self.variables.values() {
+            set.extend(var.tags.iter().cloned());
+        }
+        set.into_iter().collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn source_literal(val: &str) -> Source {
+        Source {
+            literal: Some(val.to_string()),
+            cmd: None,
+            sh: None,
+            template: None,
+            skip: None,
+        }
+    }
+
+    fn make_config(variables: Vec<(&str, Variable)>) -> Config {
+        Config {
+            variables: variables
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn environments_from_envs_and_overrides() {
+        let config = make_config(vec![(
+            "VAR",
+            Variable {
+                description: None,
+                tags: vec![],
+                default: None,
+                envs: BTreeMap::from([
+                    ("prod".to_string(), source_literal("a")),
+                    ("staging".to_string(), source_literal("b")),
+                ]),
+                overrides: BTreeMap::from([(
+                    "ovr".to_string(),
+                    Override {
+                        default: None,
+                        envs: BTreeMap::from([
+                            ("staging".to_string(), source_literal("c")),
+                            ("dev".to_string(), source_literal("d")),
+                        ]),
+                    },
+                )]),
+            },
+        )]);
+        assert_eq!(config.environments(), vec!["dev", "prod", "staging"]);
+    }
+
+    #[test]
+    fn environments_empty() {
+        let config = make_config(vec![(
+            "VAR",
+            Variable {
+                description: None,
+                tags: vec![],
+                default: Some(source_literal("x")),
+                envs: BTreeMap::new(),
+                overrides: BTreeMap::new(),
+            },
+        )]);
+        assert!(config.environments().is_empty());
+    }
+
+    #[test]
+    fn override_names_collected_and_deduped() {
+        let config = make_config(vec![
+            (
+                "A",
+                Variable {
+                    description: None,
+                    tags: vec![],
+                    default: None,
+                    envs: BTreeMap::new(),
+                    overrides: BTreeMap::from([
+                        (
+                            "fast".to_string(),
+                            Override {
+                                default: Some(source_literal("x")),
+                                envs: BTreeMap::new(),
+                            },
+                        ),
+                        (
+                            "slow".to_string(),
+                            Override {
+                                default: Some(source_literal("y")),
+                                envs: BTreeMap::new(),
+                            },
+                        ),
+                    ]),
+                },
+            ),
+            (
+                "B",
+                Variable {
+                    description: None,
+                    tags: vec![],
+                    default: None,
+                    envs: BTreeMap::new(),
+                    overrides: BTreeMap::from([(
+                        "fast".to_string(),
+                        Override {
+                            default: Some(source_literal("z")),
+                            envs: BTreeMap::new(),
+                        },
+                    )]),
+                },
+            ),
+        ]);
+        assert_eq!(config.override_names(), vec!["fast", "slow"]);
+    }
+
+    #[test]
+    fn override_names_empty() {
+        let config = make_config(vec![(
+            "VAR",
+            Variable {
+                description: None,
+                tags: vec![],
+                default: Some(source_literal("x")),
+                envs: BTreeMap::new(),
+                overrides: BTreeMap::new(),
+            },
+        )]);
+        assert!(config.override_names().is_empty());
+    }
+
+    #[test]
+    fn tag_names_collected_and_deduped() {
+        let config = make_config(vec![
+            (
+                "A",
+                Variable {
+                    description: None,
+                    tags: vec!["oauth".to_string(), "vault".to_string()],
+                    default: None,
+                    envs: BTreeMap::new(),
+                    overrides: BTreeMap::new(),
+                },
+            ),
+            (
+                "B",
+                Variable {
+                    description: None,
+                    tags: vec!["vault".to_string(), "db".to_string()],
+                    default: None,
+                    envs: BTreeMap::new(),
+                    overrides: BTreeMap::new(),
+                },
+            ),
+        ]);
+        assert_eq!(config.tag_names(), vec!["db", "oauth", "vault"]);
+    }
+
+    #[test]
+    fn tag_names_empty() {
+        let config = make_config(vec![(
+            "VAR",
+            Variable {
+                description: None,
+                tags: vec![],
+                default: Some(source_literal("x")),
+                envs: BTreeMap::new(),
+                overrides: BTreeMap::new(),
+            },
+        )]);
+        assert!(config.tag_names().is_empty());
     }
 }

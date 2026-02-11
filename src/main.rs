@@ -12,9 +12,10 @@ mod resolve;
 
 #[derive(Parser)]
 #[command(about = "Resolve environment variables from envoke.yaml", version)]
+#[allow(clippy::struct_excessive_bools)]
 struct Cli {
     /// Target environment (e.g. local, prod).
-    #[arg(required_unless_present = "schema")]
+    #[arg(required_unless_present_any = ["schema", "list_environments", "list_overrides", "list_tags"])]
     environment: Option<String>,
 
     /// Write output to a file instead of stdout.
@@ -50,6 +51,18 @@ struct Cli {
     #[arg(long)]
     schema: bool,
 
+    /// List all environment names found in the config and exit.
+    #[arg(long)]
+    list_environments: bool,
+
+    /// List all override names found in the config and exit.
+    #[arg(long)]
+    list_overrides: bool,
+
+    /// List all tag names found in the config and exit.
+    #[arg(long)]
+    list_tags: bool,
+
     /// Suppress informational messages on stderr.
     #[arg(short, long)]
     quiet: bool,
@@ -71,6 +84,30 @@ fn run() -> anyhow::Result<()> {
                 .with_context(|| format!("failed to write {}", path.display()))?;
         } else {
             println!("{json}");
+        }
+        return Ok(());
+    }
+
+    if cli.list_environments || cli.list_overrides || cli.list_tags {
+        let yaml = fs::read_to_string(&cli.config)
+            .with_context(|| format!("failed to read {}", cli.config.display()))?;
+        let config: config::Config = serde_yaml::from_str(&yaml)
+            .with_context(|| format!("failed to parse {}", cli.config.display()))?;
+
+        if cli.list_environments {
+            for name in config.environments() {
+                println!("{name}");
+            }
+        }
+        if cli.list_overrides {
+            for name in config.override_names() {
+                println!("{name}");
+            }
+        }
+        if cli.list_tags {
+            for name in config.tag_names() {
+                println!("{name}");
+            }
         }
         return Ok(());
     }
