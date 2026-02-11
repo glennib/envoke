@@ -1,11 +1,12 @@
 # envoke
 
-Resolve environment variables from a declarative YAML config file.
+Resolve variable values from a declarative YAML configuration.
 
-envoke reads an `envoke.yaml` file, resolves variables in dependency order, and
-outputs shell-safe `VAR='value'` lines. Variables can be literal strings, command
-output, shell scripts, or [minijinja](https://github.com/mitsuhiko/minijinja)
-templates that reference other variables.
+envoke reads an `envoke.yaml` file, resolves variables from multiple sources
+(literals, commands, shell scripts, and [minijinja](https://github.com/mitsuhiko/minijinja)
+templates) in dependency order, and renders the results as shell-safe
+`VAR='value'` lines — ready to source as environment variables, write to `.env`
+files, or feed into custom output templates.
 
 ## Installation
 

@@ -3,7 +3,7 @@ name = "envoke-cli"
 version = "0.1.5"
 edition = "2024"
 repository = "https://github.com/glennib/envoke"
-description = "Resolve environment variables from a declarative YAML config file"
+description = "Resolve variables from literals, commands, scripts, and templates — output as env vars, .env files, or custom formats"
 license = "MIT OR Apache-2.0"
 authors = ["Glenn Bitar <glennbitar@gmail.com>"]
 
