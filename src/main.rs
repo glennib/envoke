@@ -49,6 +49,10 @@ struct Cli {
     /// Print the JSON Schema for envoke.yaml and exit.
     #[arg(long)]
     schema: bool,
+
+    /// Suppress informational messages on stderr.
+    #[arg(short, long)]
+    quiet: bool,
 }
 
 fn run() -> anyhow::Result<()> {
@@ -74,13 +78,16 @@ fn run() -> anyhow::Result<()> {
         let output = cli.output;
         let prepend_export = cli.prepend_export;
         let template_path = cli.template;
+        let quiet = cli.quiet;
 
         let yaml = fs::read_to_string(&cli.config)
             .with_context(|| format!("failed to read {}", cli.config.display()))?;
         let config: config::Config = serde_yaml::from_str(&yaml)
             .with_context(|| format!("failed to parse {}", cli.config.display()))?;
 
-        eprintln!("Generating environment variables for {environment}...");
+        if !quiet {
+            eprintln!("Generating environment variables for {environment}...");
+        }
 
         let resolved =
             resolve::resolve_all(&config, &environment, &tags, &overrides).map_err(|errors| {
@@ -113,7 +120,9 @@ fn run() -> anyhow::Result<()> {
         if let Some(path) = &output {
             fs::write(path, &content)
                 .with_context(|| format!("failed to write {}", path.display()))?;
-            eprintln!("Wrote to {}", path.display());
+            if !quiet {
+                eprintln!("Wrote to {}", path.display());
+            }
         } else {
             print!("{content}");
         }
