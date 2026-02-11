@@ -13,7 +13,7 @@ mod resolve;
 #[derive(Parser)]
 #[command(about = "Resolve environment variables from envoke.yaml")]
 struct Cli {
-    /// Target environment (e.g. local, apps-prod).
+    /// Target environment (e.g. local, prod).
     #[arg(required_unless_present = "schema")]
     environment: Option<String>,
 
