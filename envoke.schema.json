@@ -12,12 +12,14 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Fallback source for this override when the environment has no entry."
         },
         "envs": {
           "additionalProperties": {
             "$ref": "#/$defs/Source"
           },
+          "default": {},
           "description": "Map of environment names to value sources for this override.",
           "type": "object"
         }
@@ -25,49 +27,77 @@
       "type": "object"
     },
     "Source": {
-      "additionalProperties": false,
-      "description": "How to obtain the value for a variable in a given environment.\n\nExactly one of `literal`, `cmd`, `sh`, `template`, or `skip` must be\nspecified.",
-      "properties": {
-        "cmd": {
-          "description": "A command to execute; stdout is captured and trimmed.",
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "literal": {
+      "description": "How to obtain the value for a variable in a given environment.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
           "description": "A fixed string value.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "properties": {
+            "literal": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "literal"
+          ],
+          "type": "object"
         },
-        "sh": {
+        {
+          "additionalProperties": false,
+          "description": "A command to execute; stdout is captured and trimmed.",
+          "properties": {
+            "cmd": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "cmd"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "A shell script to execute via `sh -c`; stdout is captured and trimmed.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "properties": {
+            "sh": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sh"
+          ],
+          "type": "object"
         },
-        "skip": {
+        {
+          "additionalProperties": false,
+          "description": "A minijinja (Jinja2) template string. Reference other variables with\n`{{ VAR_NAME }}`.",
+          "properties": {
+            "template": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "template"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "When `true`, the variable is silently omitted from output.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "template": {
-          "description": "A minijinja (Jinja2) template string. Reference other variables with `{{\nVAR_NAME }}`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "properties": {
+            "skip": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "skip"
+          ],
+          "type": "object"
         }
-      },
-      "type": "object"
+      ]
     },
     "Variable": {
       "description": "A single environment variable with per-environment sources.",
@@ -81,6 +111,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Fallback source used when the requested environment has no entry in\n`envs`."
         },
         "description": {
@@ -94,6 +125,7 @@
           "additionalProperties": {
             "$ref": "#/$defs/Source"
           },
+          "default": {},
           "description": "Map of environment names to value sources.",
           "type": "object"
         },
