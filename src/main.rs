@@ -11,7 +11,7 @@ mod render;
 mod resolve;
 
 #[derive(Parser)]
-#[command(about = "Resolve environment variables from envoke.yaml")]
+#[command(about = "Resolve environment variables from envoke.yaml", version)]
 struct Cli {
     /// Target environment (e.g. local, prod).
     #[arg(required_unless_present = "schema")]
