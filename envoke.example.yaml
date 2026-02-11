@@ -1,0 +1,154 @@
+# envoke.example.yaml
+#
+# Example configuration demonstrating all envoke features.
+# Copy to envoke.yaml and adapt for your project.
+#
+# Usage:
+#   envoke local                          # resolve for "local" environment
+#   envoke prod                           # resolve for "prod" environment
+#   envoke prod --prepend-export          # prefix each line with "export "
+#   envoke prod -o .env                   # write to file
+#   envoke prod --tag vault               # include vault-tagged variables
+#   envoke prod --override read-replica   # activate the read-replica override
+
+variables:
+  # --- literal: fixed string values ---
+  APP_NAME:
+    description: Name of the application
+    default:
+      literal: my-app
+
+  # --- Per-environment sources ---
+  LOG_LEVEL:
+    description: Application log level
+    default:
+      literal: debug
+    envs:
+      staging:
+        literal: info
+      prod:
+        literal: warn
+
+  # --- cmd: capture stdout from a command ---
+  HOSTNAME:
+    description: System hostname via command
+    default:
+      cmd: [hostname]
+
+  # --- sh: run a shell script ---
+  BUILD_DATE:
+    description: ISO 8601 build timestamp
+    default:
+      sh: date -u +%Y-%m-%dT%H:%M:%SZ
+
+  # --- template: interpolate other variables ---
+  DATABASE_HOST:
+    default:
+      literal: localhost
+    envs:
+      prod:
+        literal: 172.10.0.1
+
+  DATABASE_PORT:
+    default:
+      literal: "5432"
+
+  DATABASE_USER:
+    default:
+      literal: app
+    envs:
+      prod:
+        literal: app_prod
+
+  DATABASE_PASSWORD:
+    default:
+      literal: secret
+    envs:
+      prod:
+        # In a real project this might read from a secrets file:
+        #   sh: cat /run/secrets/db_password
+        literal: pr0d-s3cret!
+
+  DATABASE_NAME:
+    default:
+      literal: mydb
+
+  DATABASE_URL:
+    description: Fully assembled connection string (urlencode filter escapes special characters)
+    default:
+      template: >-
+        postgresql://{{ DATABASE_USER | urlencode }}:{{ DATABASE_PASSWORD | urlencode }}@{{ DATABASE_HOST }}:{{ DATABASE_PORT }}/{{ DATABASE_NAME }}
+
+  # --- skip: omit a variable from output ---
+  LEGACY_FLAG:
+    description: Present in local for backwards compat, skipped in prod
+    default:
+      literal: "1"
+    envs:
+      prod:
+        skip: true
+
+  # --- tags: conditional inclusion ---
+  VAULT_TOKEN:
+    description: Only included when --tag vault is passed
+    tags: [vault]
+    default:
+      literal: dev-token
+    envs:
+      prod:
+        # In a real project: sh: vault kv get -field=token secret/app
+        literal: prod-vault-token
+
+  OAUTH_CLIENT_ID:
+    description: Only included when --tag oauth is passed
+    tags: [oauth]
+    default:
+      literal: local-client-id
+    envs:
+      prod:
+        literal: prod-client-id
+
+  # --- overrides: scenario-specific source alternatives ---
+  #
+  # Activate with: envoke prod --override read-replica
+  # Multiple overrides on disjoint variables:
+  #   envoke prod --override read-replica --override aggressive-cache
+  #
+  # Fallback chain per variable (when override is active):
+  #   1. override envs[environment]
+  #   2. override default
+  #   3. base envs[environment]
+  #   4. base default
+
+  CACHE_STRATEGY:
+    default:
+      literal: lru
+    envs:
+      prod:
+        literal: lru
+    overrides:
+      aggressive-cache:
+        envs:
+          prod:
+            literal: lfu-with-prefetch
+
+  # DATABASE_HOST (defined above) also participates in overrides:
+  # When --override read-replica is active, the host changes;
+  # DATABASE_PORT, DATABASE_USER, etc. are unaffected and fall through
+  # to their base sources, so DATABASE_URL recomputes automatically.
+  #
+  # To add overrides to DATABASE_HOST, merge this into the definition above:
+  #
+  #   DATABASE_HOST:
+  #     default:
+  #       literal: localhost
+  #     envs:
+  #       prod:
+  #         literal: 172.10.0.1
+  #     overrides:
+  #       read-replica:
+  #         default:
+  #           literal: localhost-ro
+  #         envs:
+  #           prod:
+  #             literal: 172.10.0.2
