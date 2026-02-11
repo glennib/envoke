@@ -1,6 +1,6 @@
 [package]
 name = "envoke-cli"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 repository = "https://github.com/glennib/envoke"
 description = "Resolve variables from literals, commands, scripts, and templates — output as env vars, .env files, or custom formats"

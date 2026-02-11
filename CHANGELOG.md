@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0](https://github.com/glennib/envoke/compare/v1.0.0...v1.1.0) - 2026-02-11
+
+### Added
+
+- add --list-environments, --list-overrides, --list-tags flags
+
+### Other
+
+- replace Source struct with enum and switch to serde_yml
+
 ## [1.0.0](https://github.com/glennib/envoke/compare/v0.1.6...v1.0.0) - 2026-02-11
 
 First stable release. Envoke resolves variables from a declarative YAML
