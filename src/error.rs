@@ -2,6 +2,15 @@ fn format_cycle(chain: &[String]) -> String {
     chain.join(" -> ")
 }
 
+fn format_override_names(names: &[String]) -> String {
+    names
+        .iter()
+        .map(|n| format!("'{n}'"))
+        .collect::<Vec<_>>()
+        .join(" and ")
+        + " both define sources for this variable"
+}
+
 /// Errors that occur during variable resolution.
 #[derive(Debug, thiserror::Error)]
 #[error("{variable} [{environment}]: {kind}")]
@@ -35,4 +44,6 @@ pub enum ResolveErrorKind {
     TemplateRender { reason: String },
     #[error("invalid source: {reason}")]
     InvalidSource { reason: String },
+    #[error("conflicting overrides: {}", format_override_names(names))]
+    ConflictingOverrides { names: Vec<String> },
 }

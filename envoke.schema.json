@@ -1,5 +1,29 @@
 {
   "$defs": {
+    "Override": {
+      "description": "An override provides alternative sources for a variable, activated via\nthe `--override` CLI flag.",
+      "properties": {
+        "default": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Source"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Fallback source for this override when the environment has no entry."
+        },
+        "envs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Source"
+          },
+          "description": "Map of environment names to value sources for this override.",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "Source": {
       "additionalProperties": false,
       "description": "How to obtain the value for a variable in a given environment.\n\nExactly one of `literal`, `cmd`, `sh`, `template`, or `skip` must be\nspecified.",
@@ -71,6 +95,13 @@
             "$ref": "#/$defs/Source"
           },
           "description": "Map of environment names to value sources.",
+          "type": "object"
+        },
+        "overrides": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Override"
+          },
+          "description": "Named overrides that can be activated via `--override` on the CLI.\nEach override provides alternative `default`/`envs` sources that\ntake precedence over the base sources when active.",
           "type": "object"
         },
         "tags": {

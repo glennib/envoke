@@ -26,6 +26,22 @@ pub struct Variable {
     /// Map of environment names to value sources.
     #[serde(default)]
     pub envs: BTreeMap<String, Source>,
+    /// Named overrides that can be activated via `--override` on the CLI.
+    /// Each override provides alternative `default`/`envs` sources that
+    /// take precedence over the base sources when active.
+    #[serde(default)]
+    pub overrides: BTreeMap<String, Override>,
+}
+
+/// An override provides alternative sources for a variable, activated via
+/// the `--override` CLI flag.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct Override {
+    /// Fallback source for this override when the environment has no entry.
+    pub default: Option<Source>,
+    /// Map of environment names to value sources for this override.
+    #[serde(default)]
+    pub envs: BTreeMap<String, Source>,
 }
 
 /// How to obtain the value for a variable in a given environment.

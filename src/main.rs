@@ -26,6 +26,11 @@ struct Cli {
     #[arg(short = 't', long = "tag")]
     tags: Vec<String>,
 
+    /// Select named overrides for source selection. Repeatable.
+    /// Per variable, at most one active override may be defined.
+    #[arg(short = 'O', long = "override")]
+    overrides: Vec<String>,
+
     /// Prefix each line with `export `.
     #[arg(long)]
     prepend_export: bool,
@@ -65,6 +70,7 @@ fn run() -> anyhow::Result<()> {
     // Default: generate
     {
         let tags = cli.tags;
+        let overrides = cli.overrides;
         let environment = cli.environment.expect("required by clap");
         let output = cli.output;
         let prepend_export = cli.prepend_export;
@@ -76,12 +82,13 @@ fn run() -> anyhow::Result<()> {
 
         eprintln!("Generating environment variables for {environment}...");
 
-        let resolved = resolve::resolve_all(&config, &environment, &tags).map_err(|errors| {
-            for err in &errors {
-                eprintln!("error: {err}");
-            }
-            anyhow::anyhow!("{} variable(s) failed to resolve", errors.len())
-        })?;
+        let resolved =
+            resolve::resolve_all(&config, &environment, &tags, &overrides).map_err(|errors| {
+                for err in &errors {
+                    eprintln!("error: {err}");
+                }
+                anyhow::anyhow!("{} variable(s) failed to resolve", errors.len())
+            })?;
 
         let export_prefix = if prepend_export { "export " } else { "" };
 
