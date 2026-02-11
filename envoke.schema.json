@@ -60,7 +60,7 @@
           ]
         },
         "template": {
-          "description": "A minijinja (Jinja2) template string. Reference other variables with `{{ VAR_NAME }}`.",
+          "description": "A minijinja (Jinja2) template string. Reference other variables with `{{\nVAR_NAME }}`.",
           "type": [
             "string",
             "null"
