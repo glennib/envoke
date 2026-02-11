@@ -28,7 +28,7 @@ Formatting uses nightly features (`rustfmt.toml` has `style_edition = "2024"`). 
 
 The codebase is a single Rust binary with three modules:
 
-- **`main.rs`** -- CLI (clap), reads YAML config, orchestrates resolution, formats shell-escaped output. Supports `--output` file writing (with `@generated` header), `--prepend-export`, `--tag` (conditional inclusion), `--override` (per-variable source overrides), and `--schema` (JSON Schema output).
+- **`main.rs`** -- CLI (clap), reads YAML config, orchestrates resolution, formats shell-escaped output. Always prepends an `@generated` header with invocation and timestamp. Supports `--output` file writing, `--prepend-export`, `--tag` (conditional inclusion), `--override` (per-variable source overrides), and `--schema` (JSON Schema output).
 - **`config.rs`** -- Data model: `Config` (top-level), `Variable` (per-env sources + optional default/description/tags/overrides), `Override` (alternative default/envs sources), `Source` (one-of: literal/cmd/sh/template/skip), `SourceKind` (validated variant). Derives `JsonSchema` via `schemars`.
 - **`resolve.rs`** -- Core logic. `resolve_all()` picks per-environment sources (with default fallback and override 4-level fallback chain), topologically sorts via Kahn's algorithm, resolves values in dependency order. Template rendering uses `minijinja` (supports `urlencode` filter). Contains the test suite (~39 tests).
 - **`error.rs`** -- `ResolveError` with structured `ResolveErrorKind` variants (8 types including cycle detection with chain and conflicting overrides).
