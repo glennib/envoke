@@ -322,7 +322,7 @@ envoke [OPTIONS] [ENVIRONMENT]
 | `-o, --output <PATH>` | Write output to a file instead of stdout. |
 | `-t, --tag <TAG>` | Only include tagged variables with a matching tag. Repeatable. Untagged variables are always included. |
 | `-O, --override <NAME>` | Activate a named override for source selection. Repeatable. Per variable, at most one active override may be defined. |
-| `--prepend-export` | **Deprecated.** Switches to a built-in template that prefixes each variable with `export `. Prefer `--template` with a custom template instead. |
+| `--prepend-export` | Switches to a built-in template that prefixes each variable with `export `. Ignored when `--template` is used. |
 | `--template <PATH>` | Use a custom output template file instead of the built-in format. |
 | `--schema` | Print the JSON Schema for `envoke.yaml` and exit. |
 

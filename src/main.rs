@@ -31,8 +31,8 @@ struct Cli {
     #[arg(short = 'O', long = "override")]
     overrides: Vec<String>,
 
-    /// Deprecated: use `--template` instead. Switches to a built-in template
-    /// that prefixes each variable with `export `.
+    /// Switches to a built-in template that prefixes each variable with `export
+    /// `. Ignored when `--template` is used.
     #[arg(long)]
     prepend_export: bool,
 

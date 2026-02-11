@@ -937,7 +937,8 @@ mod tests {
                 ),
             ]),
         };
-        // SECRET is excluded by tag filter (no matching tag), so CONN's template reference fails
+        // SECRET is excluded by tag filter (no matching tag), so CONN's template
+        // reference fails
         let err = resolve_all(&config, "local", &[], &[]).unwrap_err();
         assert!(err.iter().any(
             |e| matches!(&e.kind, ResolveErrorKind::UnknownReference { name } if name == "SECRET")
