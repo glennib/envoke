@@ -10,6 +10,24 @@ files, or feed into custom output templates.
 
 ## Installation
 
+### From crates.io
+
+```sh
+cargo install envoke-cli
+```
+
+### With cargo-binstall
+
+```sh
+cargo binstall envoke-cli
+```
+
+### With mise
+
+```sh
+mise use -g cargo:envoke-cli
+```
+
 ### From source
 
 ```sh
