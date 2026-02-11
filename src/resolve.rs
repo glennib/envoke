@@ -33,6 +33,7 @@ fn template_references(tmpl: &str) -> Result<HashSet<String>, minijinja::Error> 
 /// references.
 fn topological_sort(
     variables: &BTreeMap<String, SourceKind>,
+    environment: &str,
 ) -> Result<Vec<String>, Vec<ResolveError>> {
     let mut in_degree: HashMap<String, usize> = HashMap::new();
     let mut dependents: HashMap<String, Vec<String>> = HashMap::new();
@@ -49,7 +50,7 @@ fn topological_sort(
                 Err(e) => {
                     errors.push(ResolveError {
                         variable: name.clone(),
-                        environment: String::new(),
+                        environment: environment.to_owned(),
                         kind: ResolveErrorKind::TemplateRender {
                             reason: e.to_string(),
                         },
@@ -61,7 +62,7 @@ fn topological_sort(
                 if !variables.contains_key(&dep) {
                     errors.push(ResolveError {
                         variable: name.clone(),
-                        environment: String::new(),
+                        environment: environment.to_owned(),
                         kind: ResolveErrorKind::UnknownReference { name: dep },
                     });
                     continue;
@@ -105,7 +106,7 @@ fn topological_sort(
     }
 
     if sorted.len() != variables.len() {
-        let errors = find_cycles(&in_degree, &dependents);
+        let errors = find_cycles(&in_degree, &dependents, environment);
         return Err(errors);
     }
 
@@ -119,6 +120,7 @@ fn topological_sort(
 fn find_cycles(
     in_degree: &HashMap<String, usize>,
     dependents: &HashMap<String, Vec<String>>,
+    environment: &str,
 ) -> Vec<ResolveError> {
     // Build a reverse map: for each node, which nodes does it depend on?
     // `dependents` maps dep -> [nodes that depend on dep], so we need the inverse.
@@ -163,7 +165,7 @@ fn find_cycles(
                 }
                 errors.push(ResolveError {
                     variable: chain[0].clone(),
-                    environment: String::new(),
+                    environment: environment.to_owned(),
                     kind: ResolveErrorKind::CircularDependency { chain },
                 });
                 break;
@@ -389,7 +391,7 @@ pub fn resolve_all(
         return Err(errors);
     }
 
-    let order = topological_sort(&sources)?;
+    let order = topological_sort(&sources, environment)?;
 
     let mut resolved_values: HashMap<String, String> = HashMap::new();
     let mut results = Vec::new();
