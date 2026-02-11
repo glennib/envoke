@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 
 use schemars::JsonSchema;
 use serde::Deserialize;
+use serde::Serialize;
 
 /// Top-level envoke configuration, typically loaded from `envoke.yaml`.
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -23,9 +24,12 @@ pub struct Variable {
     pub tags: Vec<String>,
     /// Fallback source used when the requested environment has no entry in
     /// `envs`.
+    #[serde(default, with = "serde_yml::with::singleton_map_optional")]
+    #[schemars(with = "Option<Source>")]
     pub default: Option<Source>,
     /// Map of environment names to value sources.
-    #[serde(default)]
+    #[serde(default, with = "serde_yml::with::singleton_map_recursive")]
+    #[schemars(with = "BTreeMap<String, Source>")]
     pub envs: BTreeMap<String, Source>,
     /// Named overrides that can be activated via `--override` on the CLI.
     /// Each override provides alternative `default`/`envs` sources that
@@ -39,64 +43,39 @@ pub struct Variable {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct Override {
     /// Fallback source for this override when the environment has no entry.
+    #[serde(default, with = "serde_yml::with::singleton_map_optional")]
+    #[schemars(with = "Option<Source>")]
     pub default: Option<Source>,
     /// Map of environment names to value sources for this override.
-    #[serde(default)]
+    #[serde(default, with = "serde_yml::with::singleton_map_recursive")]
+    #[schemars(with = "BTreeMap<String, Source>")]
     pub envs: BTreeMap<String, Source>,
 }
 
 /// How to obtain the value for a variable in a given environment.
-///
-/// Exactly one of `literal`, `cmd`, `sh`, `template`, or `skip` must be
-/// specified.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct Source {
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Source {
     /// A fixed string value.
-    pub literal: Option<String>,
-    /// A command to execute; stdout is captured and trimmed.
-    pub cmd: Option<Vec<String>>,
-    /// A shell script to execute via `sh -c`; stdout is captured and trimmed.
-    pub sh: Option<String>,
-    /// A minijinja (Jinja2) template string. Reference other variables with `{{
-    /// VAR_NAME }}`.
-    pub template: Option<String>,
-    /// When `true`, the variable is silently omitted from output.
-    pub skip: Option<bool>,
-}
-
-/// The resolved kind of a source after validation.
-#[derive(Debug)]
-pub enum SourceKind {
     Literal(String),
+    /// A command to execute; stdout is captured and trimmed.
     Cmd(Vec<String>),
+    /// A shell script to execute via `sh -c`; stdout is captured and trimmed.
     Sh(String),
+    /// A minijinja (Jinja2) template string. Reference other variables with
+    /// `{{ VAR_NAME }}`.
     Template(String),
-    Skip,
+    /// When `true`, the variable is silently omitted from output.
+    Skip(bool),
 }
 
 impl Source {
-    /// Validate that exactly one field is set and return the resolved kind.
-    pub fn kind(&self) -> Result<SourceKind, &'static str> {
-        match (
-            &self.literal,
-            &self.cmd,
-            &self.sh,
-            &self.template,
-            &self.skip,
-        ) {
-            (None, None, None, None, Some(true)) => Ok(SourceKind::Skip),
-            (Some(v), None, None, None, None) => Ok(SourceKind::Literal(v.clone())),
-            (None, Some(v), None, None, None) if v.is_empty() => {
-                Err("`cmd` must have at least one element")
-            }
-            (None, Some(v), None, None, None) => Ok(SourceKind::Cmd(v.clone())),
-            (None, None, Some(v), None, None) => Ok(SourceKind::Sh(v.clone())),
-            (None, None, None, Some(v), None) => Ok(SourceKind::Template(v.clone())),
-            (None, None, None, None, None | Some(false)) => {
-                Err("one of `literal`, `cmd`, `sh`, `template`, or `skip` must be specified")
-            }
-            _ => Err("only one of `literal`, `cmd`, `sh`, `template`, or `skip` may be specified"),
+    /// Validate that the source is well-formed.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        match self {
+            Self::Cmd(args) if args.is_empty() => Err("`cmd` must have at least one element"),
+            Self::Skip(false) => Err("`skip` must be `true` when specified"),
+            _ => Ok(()),
         }
     }
 }
@@ -139,13 +118,7 @@ mod tests {
     use super::*;
 
     fn source_literal(val: &str) -> Source {
-        Source {
-            literal: Some(val.to_string()),
-            cmd: None,
-            sh: None,
-            template: None,
-            skip: None,
-        }
+        Source::Literal(val.to_string())
     }
 
     fn make_config(variables: Vec<(&str, Variable)>) -> Config {

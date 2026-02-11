@@ -8,7 +8,7 @@ use tracing::debug;
 use tracing::warn;
 
 use crate::config::Config;
-use crate::config::SourceKind;
+use crate::config::Source;
 use crate::error::ResolveError;
 use crate::error::ResolveErrorKind;
 
@@ -32,7 +32,7 @@ fn template_references(tmpl: &str) -> Result<HashSet<String>, minijinja::Error> 
 /// Returns the sorted variable names, or a list of errors for cycles or unknown
 /// references.
 fn topological_sort(
-    variables: &BTreeMap<String, SourceKind>,
+    variables: &BTreeMap<String, Source>,
     environment: &str,
 ) -> Result<Vec<String>, Vec<ResolveError>> {
     let mut in_degree: HashMap<String, usize> = HashMap::new();
@@ -44,7 +44,7 @@ fn topological_sort(
     }
 
     for (name, source) in variables {
-        if let SourceKind::Template(tmpl) = source {
+        if let Source::Template(tmpl) = source {
             let refs = match template_references(tmpl) {
                 Ok(refs) => refs,
                 Err(e) => {
@@ -190,17 +190,17 @@ fn find_cycles(
 
 /// Resolve a single source to its string value.
 fn resolve_source(
-    source: &SourceKind,
+    source: &Source,
     variable: &str,
     environment: &str,
     resolved: &HashMap<String, String>,
 ) -> Result<String, ResolveError> {
     match source {
-        SourceKind::Literal(value) => {
+        Source::Literal(value) => {
             debug!(variable, "resolved from literal");
             Ok(value.clone())
         }
-        SourceKind::Cmd(args) => {
+        Source::Cmd(args) => {
             debug!(variable, ?args, "executing command");
             let output = Command::new(&args[0])
                 .args(&args[1..])
@@ -232,7 +232,7 @@ fn resolve_source(
             debug!(variable, "resolved from command");
             Ok(value)
         }
-        SourceKind::Sh(script) => {
+        Source::Sh(script) => {
             let command = vec!["sh".to_owned(), "-c".to_owned(), script.clone()];
             debug!(variable, %script, "executing shell script");
             let output = Command::new("sh")
@@ -265,7 +265,7 @@ fn resolve_source(
             debug!(variable, "resolved from shell script");
             Ok(value)
         }
-        SourceKind::Template(tmpl) => {
+        Source::Template(tmpl) => {
             let env = minijinja::Environment::new();
             let value = env.render_str(tmpl, resolved).map_err(|e| ResolveError {
                 variable: variable.to_owned(),
@@ -277,7 +277,7 @@ fn resolve_source(
             debug!(variable, "resolved from template");
             Ok(value)
         }
-        SourceKind::Skip => unreachable!("skip sources are filtered before resolution"),
+        Source::Skip(_) => unreachable!("skip sources are filtered before resolution"),
     }
 }
 
@@ -299,7 +299,7 @@ pub fn resolve_all(
     overrides: &[String],
 ) -> Result<Vec<Resolved>, Vec<ResolveError>> {
     let active_tags: HashSet<&str> = tags.iter().map(String::as_str).collect();
-    let mut sources: BTreeMap<String, SourceKind> = BTreeMap::new();
+    let mut sources: BTreeMap<String, Source> = BTreeMap::new();
     let mut errors = Vec::new();
 
     // Track which override names are actually defined on at least one variable,
@@ -353,14 +353,8 @@ pub fn resolve_all(
         };
 
         match source {
-            Some(source) => match source.kind() {
-                Ok(SourceKind::Skip) => {
-                    debug!(variable = name.as_str(), "skipped");
-                }
-                Ok(kind) => {
-                    sources.insert(name.clone(), kind);
-                }
-                Err(msg) => {
+            Some(source) => {
+                if let Err(msg) = source.validate() {
                     errors.push(ResolveError {
                         variable: name.clone(),
                         environment: environment.to_owned(),
@@ -368,8 +362,12 @@ pub fn resolve_all(
                             reason: msg.to_owned(),
                         },
                     });
+                } else if matches!(source, Source::Skip(_)) {
+                    debug!(variable = name.as_str(), "skipped");
+                } else {
+                    sources.insert(name.clone(), source.clone());
                 }
-            },
+            }
             None => {
                 errors.push(ResolveError {
                     variable: name.clone(),
@@ -418,56 +416,25 @@ pub fn resolve_all(
 mod tests {
     use super::*;
     use crate::config::Override;
-    use crate::config::Source;
 
     fn literal(value: &str) -> Source {
-        Source {
-            literal: Some(value.to_owned()),
-            cmd: None,
-            sh: None,
-            template: None,
-            skip: None,
-        }
+        Source::Literal(value.to_owned())
     }
 
     fn template(value: &str) -> Source {
-        Source {
-            literal: None,
-            cmd: None,
-            sh: None,
-            template: Some(value.to_owned()),
-            skip: None,
-        }
+        Source::Template(value.to_owned())
     }
 
     fn cmd(args: Vec<&str>) -> Source {
-        Source {
-            literal: None,
-            cmd: Some(args.into_iter().map(ToOwned::to_owned).collect()),
-            sh: None,
-            template: None,
-            skip: None,
-        }
+        Source::Cmd(args.into_iter().map(ToOwned::to_owned).collect())
     }
 
     fn sh(script: &str) -> Source {
-        Source {
-            literal: None,
-            cmd: None,
-            sh: Some(script.to_owned()),
-            template: None,
-            skip: None,
-        }
+        Source::Sh(script.to_owned())
     }
 
     fn skip() -> Source {
-        Source {
-            literal: None,
-            cmd: None,
-            sh: None,
-            template: None,
-            skip: Some(true),
-        }
+        Source::Skip(true)
     }
 
     fn var(envs: BTreeMap<String, Source>) -> crate::config::Variable {

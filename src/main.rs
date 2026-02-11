@@ -91,7 +91,7 @@ fn run() -> anyhow::Result<()> {
     if cli.list_environments || cli.list_overrides || cli.list_tags {
         let yaml = fs::read_to_string(&cli.config)
             .with_context(|| format!("failed to read {}", cli.config.display()))?;
-        let config: config::Config = serde_yaml::from_str(&yaml)
+        let config: config::Config = serde_yml::from_str(&yaml)
             .with_context(|| format!("failed to parse {}", cli.config.display()))?;
 
         if cli.list_environments {
@@ -124,7 +124,7 @@ fn run() -> anyhow::Result<()> {
 
         let yaml = fs::read_to_string(&cli.config)
             .with_context(|| format!("failed to read {}", cli.config.display()))?;
-        let config: config::Config = serde_yaml::from_str(&yaml)
+        let config: config::Config = serde_yml::from_str(&yaml)
             .with_context(|| format!("failed to parse {}", cli.config.display()))?;
 
         if !quiet {
