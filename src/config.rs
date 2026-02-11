@@ -85,6 +85,9 @@ impl Source {
         ) {
             (None, None, None, None, Some(true)) => Ok(SourceKind::Skip),
             (Some(v), None, None, None, None) => Ok(SourceKind::Literal(v.clone())),
+            (None, Some(v), None, None, None) if v.is_empty() => {
+                Err("`cmd` must have at least one element")
+            }
             (None, Some(v), None, None, None) => Ok(SourceKind::Cmd(v.clone())),
             (None, None, Some(v), None, None) => Ok(SourceKind::Sh(v.clone())),
             (None, None, None, Some(v), None) => Ok(SourceKind::Template(v.clone())),
