@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1](https://github.com/glennib/envoke/compare/v1.4.0...v1.4.1) - 2026-02-12
+
+### Other
+
+- add mise with github backend as the primary install method
+
 ## [1.4.0](https://github.com/glennib/envoke/compare/v1.3.0...v1.4.0) - 2026-02-12
 
 ### Added
