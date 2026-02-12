@@ -28,6 +28,10 @@ struct Cli {
     #[arg(short = 't', long = "tag")]
     tags: Vec<String>,
 
+    /// Include all tagged variables regardless of their tags.
+    #[arg(long, conflicts_with = "tags")]
+    all_tags: bool,
+
     /// Select named overrides for source selection. Repeatable.
     /// Per variable, at most one active override may be defined.
     #[arg(short = 'O', long = "override")]
@@ -141,6 +145,7 @@ fn run() -> anyhow::Result<()> {
     // Default: generate
     {
         let tags = cli.tags;
+        let all_tags = cli.all_tags;
         let overrides = cli.overrides;
         let environment = cli.environment.expect("required by clap");
         let output = cli.output;
@@ -152,6 +157,8 @@ fn run() -> anyhow::Result<()> {
             .with_context(|| format!("failed to read {}", cli.config.display()))?;
         let config: config::Config = serde_yml::from_str(&yaml)
             .with_context(|| format!("failed to parse {}", cli.config.display()))?;
+
+        let tags = if all_tags { config.tag_names() } else { tags };
 
         if !quiet {
             eprintln!("Generating environment variables for {environment}...");
