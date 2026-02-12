@@ -93,7 +93,7 @@ pub fn render_custom(ctx: &RenderContext, path: &Path) -> anyhow::Result<String>
 ///
 /// Embedded single quotes are replaced with `'\''` (end quote, escaped quote,
 /// start quote).
-fn shell_escape(value: &str) -> String {
+pub(crate) fn shell_escape(value: &str) -> String {
     value.replace('\'', "'\\''")
 }
 

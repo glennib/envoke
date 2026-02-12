@@ -70,10 +70,19 @@ Template context:
 
 Available filters:
 
-  shell_escape  Escapes single quotes for shell safety
+  Built-in (minijinja builtins):
+    upper, lower, replace, trim, default, join, sort, length,
+    first, last, reverse, title, capitalize, list, int, float,
+    abs, round, batch, slice, indent, truncate, unique, map,
+    select, reject, selectattr, rejectattr, tojson, and more.
+    See https://docs.rs/minijinja/latest/minijinja/filters
 
-Note: the urlencode filter is only available in resolution templates
-(the `template` source type), not in output templates."
+  Additional filters:
+    shell_escape  Escapes single quotes for shell safety
+    urlencode     Percent-encodes special characters
+
+All filters are available in both variable templates (the `template`
+source type) and custom output templates."
     )]
     template: Option<PathBuf>,
 

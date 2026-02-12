@@ -169,12 +169,21 @@ DB_URL:
     template: "postgresql://{{ DB_USER }}:{{ DB_PASS }}@{{ DB_HOST }}/{{ DB_NAME }}"
 ```
 
-The `urlencode` filter is available for escaping special characters:
+All [minijinja built-in filters](https://docs.rs/minijinja/latest/minijinja/filters)
+are available (`upper`, `lower`, `replace`, `trim`, `default`, `join`, etc.), plus
+the following additional filters:
+
+- `urlencode` -- percent-encodes special characters for use in URLs.
+- `shell_escape` -- escapes single quotes for shell safety (`'` -> `'\''`).
 
 ```yaml
 CONN_STRING:
   default:
     template: "postgresql://{{ USER | urlencode }}:{{ PASS | urlencode }}@localhost/db"
+
+APP_NAME_LOWER:
+  default:
+    template: "{{ APP_NAME | lower }}"
 ```
 
 #### `skip`
@@ -420,10 +429,15 @@ The template receives the following variables:
 
 ### Filters
 
-- `shell_escape` -- escapes single quotes for shell safety (`'` -> `'\''`).
+All [minijinja built-in filters](https://docs.rs/minijinja/latest/minijinja/filters)
+are available (`upper`, `lower`, `replace`, `trim`, `default`, `join`, `length`,
+`first`, `last`, `sort`, `unique`, `tojson`, etc.), plus these additional filters:
 
-> **Note:** The `urlencode` filter is available in _resolution_ templates (the
-> `template` source type) but not in custom _output_ templates.
+- `shell_escape` -- escapes single quotes for shell safety (`'` -> `'\''`).
+- `urlencode` -- percent-encodes special characters.
+
+All filters are available in both variable templates (the `template` source type)
+and custom output templates.
 
 ### Example: JSON output
 
@@ -453,6 +467,25 @@ envoke local --template json.j2
 > **Note:** This simplified example does not quote or escape values. Values
 > containing `=`, `#`, or whitespace may not parse correctly in all `.env`
 > implementations.
+
+### Example: Kubernetes ConfigMap
+
+```jinja2
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ meta.environment | lower }}-env
+  labels:
+    app: myapp
+    environment: {{ meta.environment | lower }}
+    generated-by: envoke
+data:
+{% for name, var in variables | items %}  {{ name }}: "{{ var.value }}"
+{% endfor %}
+```
+
+This example uses `lower` and `items` filters to generate a Kubernetes-compatible
+manifest directly from your envoke config.
 
 ## Development
 

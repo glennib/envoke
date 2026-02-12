@@ -266,7 +266,8 @@ fn resolve_source(
             Ok(value)
         }
         Source::Template(tmpl) => {
-            let env = minijinja::Environment::new();
+            let mut env = minijinja::Environment::new();
+            env.add_filter("shell_escape", crate::render::shell_escape);
             let value = env.render_str(tmpl, resolved).map_err(|e| ResolveError {
                 variable: variable.to_owned(),
                 environment: environment.to_owned(),
@@ -1322,6 +1323,53 @@ mod tests {
         assert_eq!(db.value, "replica-db");
         let cache = resolved.iter().find(|r| r.name == "CACHE").unwrap();
         assert_eq!(cache.value, "lfu");
+    }
+
+    #[test]
+    fn test_resolve_template_shell_escape() {
+        let config = Config {
+            variables: BTreeMap::from([
+                (
+                    "PASS".to_owned(),
+                    var(BTreeMap::from([(
+                        "local".to_owned(),
+                        literal("it's a secret"),
+                    )])),
+                ),
+                (
+                    "ESCAPED".to_owned(),
+                    var(BTreeMap::from([(
+                        "local".to_owned(),
+                        template("{{ PASS | shell_escape }}"),
+                    )])),
+                ),
+            ]),
+        };
+        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let escaped = resolved.iter().find(|r| r.name == "ESCAPED").unwrap();
+        assert_eq!(escaped.value, "it'\\''s a secret");
+    }
+
+    #[test]
+    fn test_resolve_template_builtin_filter() {
+        let config = Config {
+            variables: BTreeMap::from([
+                (
+                    "NAME".to_owned(),
+                    var(BTreeMap::from([("local".to_owned(), literal("hello"))])),
+                ),
+                (
+                    "UPPER".to_owned(),
+                    var(BTreeMap::from([(
+                        "local".to_owned(),
+                        template("{{ NAME | upper }}"),
+                    )])),
+                ),
+            ]),
+        };
+        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let upper = resolved.iter().find(|r| r.name == "UPPER").unwrap();
+        assert_eq!(upper.value, "HELLO");
     }
 
     #[test]
