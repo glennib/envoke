@@ -10,6 +10,12 @@ files, or feed into custom output templates.
 
 ## Installation
 
+### With [mise](https://mise.jdx.dev/) (recommended)
+
+```sh
+mise use -g github:glennib/envoke
+```
+
 ### From crates.io
 
 ```sh
@@ -22,7 +28,7 @@ cargo install envoke-cli
 cargo binstall envoke-cli
 ```
 
-### With mise
+### With mise (from crates.io)
 
 ```sh
 mise use -g cargo:envoke-cli
