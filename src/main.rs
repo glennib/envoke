@@ -16,7 +16,7 @@ mod resolve;
 struct Cli {
     /// Target environment (e.g. local, prod). Not required with --schema or
     /// --list-* flags.
-    #[arg(required_unless_present_any = ["schema", "list_environments", "list_overrides", "list_tags"])]
+    #[arg(required_unless_present_any = ["schema", "list_environments", "list_overrides", "list_tags", "list_everything"])]
     environment: Option<String>,
 
     /// Write output to a file instead of stdout.
@@ -82,16 +82,21 @@ Note: the urlencode filter is only available in resolution templates
     schema: bool,
 
     /// List all environment names found in the config and exit.
-    #[arg(long)]
+    #[arg(long, group = "list")]
     list_environments: bool,
 
     /// List all override names found in the config and exit.
-    #[arg(long)]
+    #[arg(long, group = "list")]
     list_overrides: bool,
 
     /// List all tag names found in the config and exit.
-    #[arg(long)]
+    #[arg(long, group = "list")]
     list_tags: bool,
+
+    /// List all environments, overrides, and tags found in the config and exit.
+    /// Each line is prefixed with the type (environment, override, tag).
+    #[arg(long, group = "list")]
+    list_everything: bool,
 
     /// Suppress informational messages on stderr.
     #[arg(short, long)]
@@ -118,7 +123,7 @@ fn run() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    if cli.list_environments || cli.list_overrides || cli.list_tags {
+    if cli.list_environments || cli.list_overrides || cli.list_tags || cli.list_everything {
         let yaml = fs::read_to_string(&cli.config)
             .with_context(|| format!("failed to read {}", cli.config.display()))?;
         let config: config::Config = serde_yml::from_str(&yaml)
@@ -128,15 +133,23 @@ fn run() -> anyhow::Result<()> {
             for name in config.environments() {
                 println!("{name}");
             }
-        }
-        if cli.list_overrides {
+        } else if cli.list_overrides {
             for name in config.override_names() {
                 println!("{name}");
             }
-        }
-        if cli.list_tags {
+        } else if cli.list_tags {
             for name in config.tag_names() {
                 println!("{name}");
+            }
+        } else if cli.list_everything {
+            for name in config.environments() {
+                println!("environment:{name}");
+            }
+            for name in config.override_names() {
+                println!("override:{name}");
+            }
+            for name in config.tag_names() {
+                println!("tag:{name}");
             }
         }
         return Ok(());
