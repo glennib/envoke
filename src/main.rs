@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::Context;
+use clap::CommandFactory;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
@@ -16,7 +17,7 @@ mod resolve;
 struct Cli {
     /// Target environment (e.g. local, prod). Not required with --schema or
     /// --list-* flags.
-    #[arg(required_unless_present_any = ["schema", "list_environments", "list_overrides", "list_tags", "list_everything"])]
+    #[arg(required_unless_present_any = ["schema", "completions", "list_environments", "list_overrides", "list_tags", "list_everything"])]
     environment: Option<String>,
 
     /// Write output to a file instead of stdout.
@@ -107,11 +108,16 @@ source type) and custom output templates."
     #[arg(long, group = "list")]
     list_everything: bool,
 
+    /// Generate shell completions for the given shell and exit.
+    #[arg(long)]
+    completions: Option<clap_complete::Shell>,
+
     /// Suppress informational messages on stderr.
     #[arg(short, long)]
     quiet: bool,
 }
 
+#[allow(clippy::too_many_lines)]
 fn run() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
@@ -129,6 +135,11 @@ fn run() -> anyhow::Result<()> {
         } else {
             println!("{json}");
         }
+        return Ok(());
+    }
+
+    if let Some(shell) = cli.completions {
+        clap_complete::generate(shell, &mut Cli::command(), "envoke", &mut std::io::stdout());
         return Ok(());
     }
 

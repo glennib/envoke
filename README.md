@@ -363,6 +363,7 @@ envoke [OPTIONS] [ENVIRONMENT]
 | `--list-environments` | List all environment names found in the config and exit. |
 | `--list-overrides` | List all override names found in the config and exit. |
 | `--list-tags` | List all tag names found in the config and exit. |
+| `--completions <SHELL>` | Generate shell completions for the given shell (`bash`, `zsh`, `fish`, `elvish`, `powershell`) and exit. |
 | `-q, --quiet` | Suppress informational messages on stderr. |
 
 ### JSON Schema
@@ -492,6 +493,21 @@ data:
 
 This example uses `lower` and `items` filters to generate a Kubernetes-compatible
 manifest directly from your envoke config.
+
+### Shell completions
+
+Generate completions for your shell:
+
+```sh
+# Bash
+envoke --completions bash > ~/.local/share/bash-completion/completions/envoke
+
+# Zsh
+envoke --completions zsh > ~/.zfunc/_envoke
+
+# Fish
+envoke --completions fish > ~/.config/fish/completions/envoke.fish
+```
 
 ## Development
 
