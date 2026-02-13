@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0](https://github.com/glennib/envoke/compare/v1.4.1...v1.5.0) - 2026-02-13
+
+### Added
+
+- add --completions flag for shell completion generation
+
 ## [1.4.1](https://github.com/glennib/envoke/compare/v1.4.0...v1.4.1) - 2026-02-12
 
 ### Other
