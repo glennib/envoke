@@ -20,10 +20,15 @@ pub struct Resolved {
     pub description: Option<String>,
 }
 
-/// Metadata available in value source templates as `{{ meta.environment }}`.
+/// Metadata available in value source templates as `{{ meta.<field> }}`.
+///
+/// Exposes `environment`, `tags`, `overrides`, and `timestamp`.
 #[derive(serde::Serialize)]
 struct TemplateMeta<'a> {
     environment: &'a str,
+    tags: &'a [String],
+    overrides: &'a [String],
+    timestamp: &'a str,
 }
 
 /// Extract variable references from a minijinja template string.
@@ -202,6 +207,9 @@ fn resolve_source(
     source: &Source,
     variable: &str,
     environment: &str,
+    tags: &[String],
+    overrides: &[String],
+    timestamp: &str,
     resolved: &HashMap<String, String>,
 ) -> Result<String, ResolveError> {
     match source {
@@ -283,7 +291,12 @@ fn resolve_source(
                 .collect();
             ctx.insert(
                 "meta",
-                minijinja::Value::from_serialize(&TemplateMeta { environment }),
+                minijinja::Value::from_serialize(&TemplateMeta {
+                    environment,
+                    tags,
+                    overrides,
+                    timestamp,
+                }),
             );
             let value = env.render_str(tmpl, ctx).map_err(|e| ResolveError {
                 variable: variable.to_owned(),
@@ -315,6 +328,7 @@ pub fn resolve_all(
     environment: &str,
     tags: &[String],
     overrides: &[String],
+    timestamp: &str,
 ) -> Result<Vec<Resolved>, Vec<ResolveError>> {
     let active_tags: HashSet<&str> = tags.iter().map(String::as_str).collect();
     let mut sources: BTreeMap<String, Source> = BTreeMap::new();
@@ -414,8 +428,16 @@ pub fn resolve_all(
 
     for name in &order {
         let source = &sources[name];
-        let value =
-            resolve_source(source, name, environment, &resolved_values).map_err(|e| vec![e])?;
+        let value = resolve_source(
+            source,
+            name,
+            environment,
+            tags,
+            overrides,
+            timestamp,
+            &resolved_values,
+        )
+        .map_err(|e| vec![e])?;
         resolved_values.insert(name.clone(), value.clone());
         let description = config.variables[name].description.clone();
         results.push(Resolved {
@@ -434,6 +456,17 @@ pub fn resolve_all(
 mod tests {
     use super::*;
     use crate::config::Override;
+
+    const TS: &str = "2025-01-01T00:00:00+00:00";
+
+    fn resolve(
+        config: &Config,
+        environment: &str,
+        tags: &[String],
+        overrides: &[String],
+    ) -> Result<Vec<Resolved>, Vec<ResolveError>> {
+        resolve_all(config, environment, tags, overrides, TS)
+    }
 
     fn literal(value: &str) -> Source {
         Source::Literal(value.to_owned())
@@ -513,7 +546,7 @@ mod tests {
                 v
             })]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "FOO");
         assert_eq!(resolved[0].value, "bar");
@@ -536,7 +569,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         let greeting = resolved.iter().find(|r| r.name == "GREETING").unwrap();
         assert_eq!(greeting.value, "hello alice!");
     }
@@ -562,7 +595,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         let conn = resolved.iter().find(|r| r.name == "CONN").unwrap();
         assert_eq!(conn.value, "alice:p%40ss%3Aword");
     }
@@ -575,7 +608,7 @@ mod tests {
                 var(BTreeMap::from([("prod".to_owned(), literal("x"))])),
             )]),
         };
-        let err = resolve_all(&config, "local", &[], &[]).unwrap_err();
+        let err = resolve(&config, "local", &[], &[]).unwrap_err();
         assert_eq!(err.len(), 1);
         assert!(matches!(err[0].kind, ResolveErrorKind::NoConfig));
     }
@@ -594,7 +627,7 @@ mod tests {
                 ),
             ]),
         };
-        let err = resolve_all(&config, "local", &[], &[]).unwrap_err();
+        let err = resolve(&config, "local", &[], &[]).unwrap_err();
         assert!(err
             .iter()
             .any(|e| matches!(&e.kind, ResolveErrorKind::CircularDependency { chain } if chain.len() >= 3)));
@@ -611,7 +644,7 @@ mod tests {
                 )])),
             )]),
         };
-        let err = resolve_all(&config, "local", &[], &[]).unwrap_err();
+        let err = resolve(&config, "local", &[], &[]).unwrap_err();
         assert!(err.iter().any(
             |e| matches!(&e.kind, ResolveErrorKind::UnknownReference { name } if name == "NONEXISTENT")
         ));
@@ -628,7 +661,7 @@ mod tests {
                 )])),
             )]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         assert_eq!(resolved[0].value, "hello");
     }
 
@@ -640,7 +673,7 @@ mod tests {
                 var_with_default(literal("fallback"), BTreeMap::new()),
             )]),
         };
-        let resolved = resolve_all(&config, "any-env", &[], &[]).unwrap();
+        let resolved = resolve(&config, "any-env", &[], &[]).unwrap();
         assert_eq!(resolved[0].value, "fallback");
     }
 
@@ -655,7 +688,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         assert_eq!(resolved[0].value, "override");
     }
 
@@ -677,7 +710,7 @@ mod tests {
                 ),
             ]),
         };
-        let err = resolve_all(&config, "local", &[], &[]).unwrap_err();
+        let err = resolve(&config, "local", &[], &[]).unwrap_err();
         let cycle = err
             .iter()
             .find_map(|e| match &e.kind {
@@ -712,7 +745,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "KEEP");
     }
@@ -729,11 +762,11 @@ mod tests {
             )]),
         };
         // In staging, the env override provides a value.
-        let resolved = resolve_all(&config, "staging", &[], &[]).unwrap();
+        let resolved = resolve(&config, "staging", &[], &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].value, "yes");
         // In prod, the default skip applies — variable is omitted.
-        let resolved = resolve_all(&config, "prod", &[], &[]).unwrap();
+        let resolved = resolve(&config, "prod", &[], &[]).unwrap();
         assert!(resolved.is_empty());
     }
 
@@ -754,7 +787,7 @@ mod tests {
                 ),
             ]),
         };
-        let err = resolve_all(&config, "local", &[], &[]).unwrap_err();
+        let err = resolve(&config, "local", &[], &[]).unwrap_err();
         assert!(err.iter().any(
             |e| matches!(&e.kind, ResolveErrorKind::UnknownReference { name } if name == "SKIPPED")
         ));
@@ -768,7 +801,7 @@ mod tests {
                 var(BTreeMap::from([("local".to_owned(), sh("echo hello"))])),
             )]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         assert_eq!(resolved[0].value, "hello");
     }
 
@@ -791,7 +824,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "UNTAGGED");
     }
@@ -807,7 +840,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "local", &["vault".to_owned()], &[]).unwrap();
+        let resolved = resolve(&config, "local", &["vault".to_owned()], &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].value, "s3cret");
     }
@@ -823,7 +856,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "local", &["oauth".to_owned()], &[]).unwrap();
+        let resolved = resolve(&config, "local", &["oauth".to_owned()], &[]).unwrap();
         assert!(resolved.is_empty());
     }
 
@@ -844,7 +877,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local", &["other".to_owned()], &[]).unwrap();
+        let resolved = resolve(&config, "local", &["other".to_owned()], &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "ALWAYS");
     }
@@ -860,7 +893,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "local", &["b".to_owned()], &[]).unwrap();
+        let resolved = resolve(&config, "local", &["b".to_owned()], &[]).unwrap();
         assert_eq!(resolved.len(), 1);
     }
 
@@ -891,7 +924,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(
+        let resolved = resolve(
             &config,
             "local",
             &["vault".to_owned(), "oauth".to_owned()],
@@ -926,7 +959,7 @@ mod tests {
         };
         // SECRET is excluded by tag filter (no matching tag), so CONN's template
         // reference fails
-        let err = resolve_all(&config, "local", &[], &[]).unwrap_err();
+        let err = resolve(&config, "local", &[], &[]).unwrap_err();
         assert!(err.iter().any(
             |e| matches!(&e.kind, ResolveErrorKind::UnknownReference { name } if name == "SECRET")
         ));
@@ -946,7 +979,7 @@ mod tests {
                 },
             )]),
         };
-        let resolved = resolve_all(&config, "local", &["something".to_owned()], &[]).unwrap();
+        let resolved = resolve(&config, "local", &["something".to_owned()], &[]).unwrap();
         assert_eq!(resolved.len(), 1);
     }
 
@@ -970,7 +1003,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local", &["vault".to_owned()], &[]).unwrap();
+        let resolved = resolve(&config, "local", &["vault".to_owned()], &[]).unwrap();
         // TAGGED_SKIP is included by tag but skipped by source
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "TAGGED_KEEP");
@@ -996,7 +1029,7 @@ mod tests {
         };
         // PROD_ONLY is tagged, so without --tag prod-secrets it's excluded,
         // avoiding the NoConfig error it would otherwise produce for "local".
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "ALWAYS");
     }
@@ -1035,7 +1068,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "prod", &[], &["read-replica".to_owned()]).unwrap();
+        let resolved = resolve(&config, "prod", &[], &["read-replica".to_owned()]).unwrap();
         assert_eq!(resolved[0].value, "172.10.0.2");
     }
 
@@ -1057,7 +1090,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "any-env", &[], &["read-replica".to_owned()]).unwrap();
+        let resolved = resolve(&config, "any-env", &[], &["read-replica".to_owned()]).unwrap();
         assert_eq!(resolved[0].value, "localhost-ro");
     }
 
@@ -1080,7 +1113,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "staging", &[], &["read-replica".to_owned()]).unwrap();
+        let resolved = resolve(&config, "staging", &[], &["read-replica".to_owned()]).unwrap();
         assert_eq!(resolved[0].value, "staging-host");
     }
 
@@ -1103,7 +1136,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "staging", &[], &["read-replica".to_owned()]).unwrap();
+        let resolved = resolve(&config, "staging", &[], &["read-replica".to_owned()]).unwrap();
         assert_eq!(resolved[0].value, "fallback");
     }
 
@@ -1128,19 +1161,19 @@ mod tests {
         };
 
         // Level 1: override env
-        let r = resolve_all(&config, "prod", &[], &["alt".to_owned()]).unwrap();
+        let r = resolve(&config, "prod", &[], &["alt".to_owned()]).unwrap();
         assert_eq!(r[0].value, "ovr-prod");
 
         // Level 2: override default (env not in override)
-        let r = resolve_all(&config, "staging", &[], &["alt".to_owned()]).unwrap();
+        let r = resolve(&config, "staging", &[], &["alt".to_owned()]).unwrap();
         assert_eq!(r[0].value, "ovr-default");
 
         // Without override active, base env
-        let r = resolve_all(&config, "prod", &[], &[]).unwrap();
+        let r = resolve(&config, "prod", &[], &[]).unwrap();
         assert_eq!(r[0].value, "base-prod");
 
         // Without override active, base default
-        let r = resolve_all(&config, "staging", &[], &[]).unwrap();
+        let r = resolve(&config, "staging", &[], &[]).unwrap();
         assert_eq!(r[0].value, "base-default");
     }
 
@@ -1162,7 +1195,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         assert_eq!(resolved[0].value, "base");
     }
 
@@ -1184,7 +1217,7 @@ mod tests {
                 ),
             )]),
         };
-        let resolved = resolve_all(&config, "local", &[], &["disable".to_owned()]).unwrap();
+        let resolved = resolve(&config, "local", &[], &["disable".to_owned()]).unwrap();
         assert!(resolved.is_empty());
     }
 
@@ -1212,7 +1245,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local", &[], &["alt".to_owned()]).unwrap();
+        let resolved = resolve(&config, "local", &[], &["alt".to_owned()]).unwrap();
         let conn = resolved.iter().find(|r| r.name == "CONN").unwrap();
         assert_eq!(conn.value, "postgres://db.local/replica");
     }
@@ -1245,13 +1278,13 @@ mod tests {
             ]),
         };
         // Tag not matched: TAGGED excluded, override irrelevant.
-        let resolved = resolve_all(&config, "local", &[], &["alt".to_owned()]).unwrap();
+        let resolved = resolve(&config, "local", &[], &["alt".to_owned()]).unwrap();
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "ALWAYS");
 
         // Tag matched and override active: override value used.
         let resolved =
-            resolve_all(&config, "local", &["vault".to_owned()], &["alt".to_owned()]).unwrap();
+            resolve(&config, "local", &["vault".to_owned()], &["alt".to_owned()]).unwrap();
         let tagged = resolved.iter().find(|r| r.name == "TAGGED").unwrap();
         assert_eq!(tagged.value, "alt-val");
     }
@@ -1275,7 +1308,7 @@ mod tests {
                 ),
             )]),
         };
-        let err = resolve_all(&config, "local", &[], &["alt".to_owned()]).unwrap_err();
+        let err = resolve(&config, "local", &[], &["alt".to_owned()]).unwrap_err();
         assert!(
             err.iter()
                 .any(|e| matches!(e.kind, ResolveErrorKind::NoConfig))
@@ -1291,7 +1324,7 @@ mod tests {
                 var_with_default(literal("base"), BTreeMap::new()),
             )]),
         };
-        let resolved = resolve_all(&config, "any", &[], &["nonexistent".to_owned()]).unwrap();
+        let resolved = resolve(&config, "any", &[], &["nonexistent".to_owned()]).unwrap();
         assert_eq!(resolved[0].value, "base");
     }
 
@@ -1329,7 +1362,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(
+        let resolved = resolve(
             &config,
             "prod",
             &[],
@@ -1362,7 +1395,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         let escaped = resolved.iter().find(|r| r.name == "ESCAPED").unwrap();
         assert_eq!(escaped.value, "it'\\''s a secret");
     }
@@ -1384,7 +1417,7 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "local", &[], &[]).unwrap();
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
         let upper = resolved.iter().find(|r| r.name == "UPPER").unwrap();
         assert_eq!(upper.value, "HELLO");
     }
@@ -1416,7 +1449,7 @@ mod tests {
                 ),
             )]),
         };
-        let err = resolve_all(&config, "prod", &[], &["a".to_owned(), "b".to_owned()]).unwrap_err();
+        let err = resolve(&config, "prod", &[], &["a".to_owned(), "b".to_owned()]).unwrap_err();
         assert!(err.iter().any(|e| matches!(
             &e.kind,
             ResolveErrorKind::ConflictingOverrides { names }
@@ -1437,7 +1470,7 @@ mod tests {
                 )])),
             )]),
         };
-        let resolved = resolve_all(&config, "staging", &[], &[]).unwrap();
+        let resolved = resolve(&config, "staging", &[], &[]).unwrap();
         assert_eq!(resolved[0].value, "https://staging.example.com");
     }
 
@@ -1458,8 +1491,59 @@ mod tests {
                 ),
             ]),
         };
-        let resolved = resolve_all(&config, "prod", &[], &[]).unwrap();
+        let resolved = resolve(&config, "prod", &[], &[]).unwrap();
         let conn = resolved.iter().find(|r| r.name == "CONN").unwrap();
         assert_eq!(conn.value, "postgres://db.prod/prod");
+    }
+
+    #[test]
+    fn test_template_meta_tags() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "TAGS".to_owned(),
+                var_with_default(template("{{ meta.tags | join(\",\") }}"), BTreeMap::new()),
+            )]),
+        };
+        let resolved = resolve(
+            &config,
+            "local",
+            &["vault".to_owned(), "oauth".to_owned()],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(resolved[0].value, "vault,oauth");
+    }
+
+    #[test]
+    fn test_template_meta_overrides() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "OVERRIDES".to_owned(),
+                var_with_default(
+                    template("{{ meta.overrides | join(\",\") }}"),
+                    BTreeMap::new(),
+                ),
+            )]),
+        };
+        let resolved = resolve(
+            &config,
+            "local",
+            &[],
+            &["alt".to_owned(), "fast".to_owned()],
+        )
+        .unwrap();
+        assert_eq!(resolved[0].value, "alt,fast");
+    }
+
+    #[test]
+    fn test_template_meta_timestamp() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "TS".to_owned(),
+                var_with_default(template("{{ meta.timestamp }}"), BTreeMap::new()),
+            )]),
+        };
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
+        assert_eq!(resolved[0].value, TS);
     }
 }

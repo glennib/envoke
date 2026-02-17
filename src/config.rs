@@ -68,7 +68,7 @@ pub enum Source {
     /// whitespace stripped.
     Sh(String),
     /// A minijinja (Jinja2) template string. Reference other variables with
-    /// `{{ VAR_NAME }}`.
+    /// `{{ VAR_NAME }}` or metadata like `{{ meta.environment }}`.
     Template(String),
     /// When `true`, the variable is silently omitted from output. Must be
     /// `true` when specified; `skip: false` is rejected by validation.

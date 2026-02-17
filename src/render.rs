@@ -22,6 +22,10 @@ pub struct Meta {
     pub environment: String,
     /// Path to the config file used.
     pub config_file: String,
+    /// Active `--tag` values.
+    pub tags: Vec<String>,
+    /// Active `--override` values.
+    pub overrides: Vec<String>,
 }
 
 /// Rich variable entry exposed in the `variables` map.
@@ -108,6 +112,8 @@ mod tests {
             invocation_args: vec!["envoke".to_owned(), "local".to_owned()],
             environment: "local".to_owned(),
             config_file: "envoke.yaml".to_owned(),
+            tags: vec![],
+            overrides: vec![],
         }
     }
 

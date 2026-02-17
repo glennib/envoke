@@ -73,7 +73,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A minijinja (Jinja2) template string. Reference other variables with\n`{{ VAR_NAME }}`.",
+          "description": "A minijinja (Jinja2) template string. Reference other variables with\n`{{ VAR_NAME }}` or metadata like `{{ meta.environment }}`.",
           "properties": {
             "template": {
               "type": "string"

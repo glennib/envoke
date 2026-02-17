@@ -68,6 +68,8 @@ Template context:
                meta.invocation_args  CLI args as a list
                meta.environment      Target environment name
                meta.config_file      Path to the config file
+               meta.tags             Active --tag values as a list
+               meta.overrides        Active --override values as a list
 
 Available filters:
 
@@ -83,7 +85,14 @@ Available filters:
     urlencode     Percent-encodes special characters
 
 All filters are available in both variable templates (the `template`
-source type) and custom output templates."
+source type) and custom output templates.
+
+Note: Variable template sources (the `template` source type in
+envoke.yaml) also have access to a `meta` object:
+  meta.environment      Target environment name
+  meta.tags             Active --tag values as a list
+  meta.overrides        Active --override values as a list
+  meta.timestamp        RFC 3339 timestamp"
     )]
     template: Option<PathBuf>,
 
@@ -197,23 +206,27 @@ fn run() -> anyhow::Result<()> {
             eprintln!("Generating environment variables for {environment}...");
         }
 
-        let resolved =
-            resolve::resolve_all(&config, &environment, &tags, &overrides).map_err(|errors| {
-                for err in &errors {
-                    eprintln!("error: {err}");
-                }
-                anyhow::anyhow!("{} variable(s) failed to resolve", errors.len())
-            })?;
+        let timestamp = chrono::Local::now().to_rfc3339();
+
+        let resolved = resolve::resolve_all(&config, &environment, &tags, &overrides, &timestamp)
+            .map_err(|errors| {
+            for err in &errors {
+                eprintln!("error: {err}");
+            }
+            anyhow::anyhow!("{} variable(s) failed to resolve", errors.len())
+        })?;
 
         let invocation_args: Vec<String> = std::env::args().collect();
         let ctx = render::RenderContext {
             resolved,
             meta: render::Meta {
-                timestamp: chrono::Local::now().to_rfc3339(),
+                timestamp,
                 invocation: invocation_args.join(" "),
                 invocation_args,
                 environment,
                 config_file: cli.config.display().to_string(),
+                tags,
+                overrides,
             },
         };
 
