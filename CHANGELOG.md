@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0](https://github.com/glennib/envoke/compare/v1.6.0...v1.7.0) - 2026-02-17
+
+### Added
+
+- expand template meta contexts with tags, overrides, and timestamp
+
 ## [1.6.0](https://github.com/glennib/envoke/compare/v1.5.0...v1.6.0) - 2026-02-17
 
 ### Added
