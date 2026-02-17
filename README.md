@@ -175,6 +175,23 @@ DB_URL:
     template: "postgresql://{{ DB_USER }}:{{ DB_PASS }}@{{ DB_HOST }}/{{ DB_NAME }}"
 ```
 
+A `meta` object is available in variable templates with the following fields:
+
+| Field | Description |
+|-------|-------------|
+| `meta.environment` | The target environment name passed to envoke. |
+
+```yaml
+API_URL:
+  default:
+    template: "https://{{ meta.environment }}.example.com/api"
+```
+
+```sh
+$ envoke staging
+API_URL='https://staging.example.com/api'
+```
+
 All [minijinja built-in filters](https://docs.rs/minijinja/latest/minijinja/filters)
 are available (`upper`, `lower`, `replace`, `trim`, `default`, `join`, etc.), plus
 the following additional filters:

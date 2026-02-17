@@ -20,6 +20,12 @@ pub struct Resolved {
     pub description: Option<String>,
 }
 
+/// Metadata available in value source templates as `{{ meta.environment }}`.
+#[derive(serde::Serialize)]
+struct TemplateMeta<'a> {
+    environment: &'a str,
+}
+
 /// Extract variable references from a minijinja template string.
 fn template_references(tmpl: &str) -> Result<HashSet<String>, minijinja::Error> {
     let env = minijinja::Environment::new();
@@ -59,6 +65,9 @@ fn topological_sort(
                 }
             };
             for dep in refs {
+                if dep == "meta" {
+                    continue;
+                }
                 if !variables.contains_key(&dep) {
                     errors.push(ResolveError {
                         variable: name.clone(),
@@ -268,7 +277,15 @@ fn resolve_source(
         Source::Template(tmpl) => {
             let mut env = minijinja::Environment::new();
             env.add_filter("shell_escape", crate::render::shell_escape);
-            let value = env.render_str(tmpl, resolved).map_err(|e| ResolveError {
+            let mut ctx: BTreeMap<&str, minijinja::Value> = resolved
+                .iter()
+                .map(|(k, v)| (k.as_str(), minijinja::Value::from(v.as_str())))
+                .collect();
+            ctx.insert(
+                "meta",
+                minijinja::Value::from_serialize(&TemplateMeta { environment }),
+            );
+            let value = env.render_str(tmpl, ctx).map_err(|e| ResolveError {
                 variable: variable.to_owned(),
                 environment: environment.to_owned(),
                 kind: ResolveErrorKind::TemplateRender {
@@ -1405,5 +1422,44 @@ mod tests {
             ResolveErrorKind::ConflictingOverrides { names }
             if names.len() == 2
         )));
+    }
+
+    // --- Meta object tests ---
+
+    #[test]
+    fn test_template_meta_environment() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "URL".to_owned(),
+                var(BTreeMap::from([(
+                    "staging".to_owned(),
+                    template("https://{{ meta.environment }}.example.com"),
+                )])),
+            )]),
+        };
+        let resolved = resolve_all(&config, "staging", &[], &[]).unwrap();
+        assert_eq!(resolved[0].value, "https://staging.example.com");
+    }
+
+    #[test]
+    fn test_template_meta_with_variable_refs() {
+        let config = Config {
+            variables: BTreeMap::from([
+                (
+                    "HOST".to_owned(),
+                    var(BTreeMap::from([("prod".to_owned(), literal("db.prod"))])),
+                ),
+                (
+                    "CONN".to_owned(),
+                    var(BTreeMap::from([(
+                        "prod".to_owned(),
+                        template("postgres://{{ HOST }}/{{ meta.environment }}"),
+                    )])),
+                ),
+            ]),
+        };
+        let resolved = resolve_all(&config, "prod", &[], &[]).unwrap();
+        let conn = resolved.iter().find(|r| r.name == "CONN").unwrap();
+        assert_eq!(conn.value, "postgres://db.prod/prod");
     }
 }
