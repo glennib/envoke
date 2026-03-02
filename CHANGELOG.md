@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1](https://github.com/glennib/envoke/compare/v1.7.0...v1.7.1) - 2026-03-02
+
+### Other
+
+- Merge pull request #27 from glennib/renovate/clap-4.x-lockfile
+- Merge pull request #28 from glennib/renovate/anyhow-1.x-lockfile
+- Merge pull request #29 from glennib/renovate/minijinja-2.x-lockfile
+- *(deps)* update rust crate chrono to v0.4.44
+- *(deps)* update actions/cache action to v5
+- Add renovate.json
+
 ## [1.7.0](https://github.com/glennib/envoke/compare/v1.6.0...v1.7.0) - 2026-02-17
 
 ### Added
