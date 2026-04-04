@@ -1,9 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::Context;
 use clap::CommandFactory;
 use clap::Parser;
+use miette::Context;
+use miette::IntoDiagnostic;
 use tracing_subscriber::EnvFilter;
 
 mod config;
@@ -127,7 +128,7 @@ envoke.yaml) also have access to a `meta` object:
 }
 
 #[allow(clippy::too_many_lines)]
-fn run() -> anyhow::Result<()> {
+fn run() -> miette::Result<()> {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_env_filter(EnvFilter::from_default_env())
@@ -137,9 +138,12 @@ fn run() -> anyhow::Result<()> {
 
     if cli.schema {
         let schema = schemars::schema_for!(config::Config);
-        let json = serde_json::to_string_pretty(&schema).context("failed to serialize schema")?;
+        let json = serde_json::to_string_pretty(&schema)
+            .into_diagnostic()
+            .context("failed to serialize schema")?;
         if let Some(path) = &cli.output {
             fs::write(path, &json)
+                .into_diagnostic()
                 .with_context(|| format!("failed to write {}", path.display()))?;
         } else {
             println!("{json}");
@@ -154,8 +158,10 @@ fn run() -> anyhow::Result<()> {
 
     if cli.list_environments || cli.list_overrides || cli.list_tags || cli.list_everything {
         let yaml = fs::read_to_string(&cli.config)
+            .into_diagnostic()
             .with_context(|| format!("failed to read {}", cli.config.display()))?;
         let config: config::Config = serde_yml::from_str(&yaml)
+            .into_diagnostic()
             .with_context(|| format!("failed to parse {}", cli.config.display()))?;
 
         if cli.list_environments {
@@ -196,8 +202,10 @@ fn run() -> anyhow::Result<()> {
         let quiet = cli.quiet;
 
         let yaml = fs::read_to_string(&cli.config)
+            .into_diagnostic()
             .with_context(|| format!("failed to read {}", cli.config.display()))?;
         let config: config::Config = serde_yml::from_str(&yaml)
+            .into_diagnostic()
             .with_context(|| format!("failed to parse {}", cli.config.display()))?;
 
         let tags = if all_tags { config.tag_names() } else { tags };
@@ -209,12 +217,7 @@ fn run() -> anyhow::Result<()> {
         let timestamp = chrono::Local::now().to_rfc3339();
 
         let resolved = resolve::resolve_all(&config, &environment, &tags, &overrides, &timestamp)
-            .map_err(|errors| {
-            for err in &errors {
-                eprintln!("error: {err}");
-            }
-            anyhow::anyhow!("{} variable(s) failed to resolve", errors.len())
-        })?;
+            .map_err(|errors| error::ResolveErrors { errors })?;
 
         let invocation_args: Vec<String> = std::env::args().collect();
         let ctx = render::RenderContext {
@@ -240,6 +243,7 @@ fn run() -> anyhow::Result<()> {
 
         if let Some(path) = &output {
             fs::write(path, &content)
+                .into_diagnostic()
                 .with_context(|| format!("failed to write {}", path.display()))?;
             if !quiet {
                 eprintln!("Wrote to {}", path.display());
@@ -252,6 +256,16 @@ fn run() -> anyhow::Result<()> {
     }
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> miette::Result<()> {
+    miette::set_hook(Box::new(|_| {
+        Box::new(
+            miette::MietteHandlerOpts::new()
+                .terminal_links(true)
+                .unicode(true)
+                .context_lines(2)
+                .build(),
+        )
+    }))
+    .expect("miette hook should only be set once");
     run()
 }
