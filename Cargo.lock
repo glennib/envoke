@@ -338,6 +338,7 @@ dependencies = [
  "memo-map",
  "percent-encoding",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
