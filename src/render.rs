@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use anyhow::Context;
+use miette::Context;
+use miette::IntoDiagnostic;
 
 use crate::resolve::Resolved;
 
@@ -44,7 +45,7 @@ pub struct RenderContext {
 }
 
 /// Render a template string with the given context.
-fn render(ctx: &RenderContext, template: &str) -> anyhow::Result<String> {
+fn render(ctx: &RenderContext, template: &str) -> miette::Result<String> {
     let mut variables: BTreeMap<&str, VariableEntry> = BTreeMap::new();
     let mut v: BTreeMap<&str, &str> = BTreeMap::new();
 
@@ -62,6 +63,7 @@ fn render(ctx: &RenderContext, template: &str) -> anyhow::Result<String> {
     let mut env = minijinja::Environment::new();
     env.add_filter("shell_escape", shell_escape);
     env.add_template("output", template)
+        .into_diagnostic()
         .context("failed to parse output template")?;
 
     let tmpl = env.get_template("output").expect("template just added");
@@ -71,24 +73,26 @@ fn render(ctx: &RenderContext, template: &str) -> anyhow::Result<String> {
             v => v,
             meta => &ctx.meta,
         })
+        .into_diagnostic()
         .context("failed to render output template")?;
 
     Ok(rendered)
 }
 
 /// Render using the built-in default template (no `export` prefix).
-pub fn render_default(ctx: &RenderContext) -> anyhow::Result<String> {
+pub fn render_default(ctx: &RenderContext) -> miette::Result<String> {
     render(ctx, DEFAULT_TEMPLATE)
 }
 
 /// Render using the built-in export template (`export` prefix).
-pub fn render_default_export(ctx: &RenderContext) -> anyhow::Result<String> {
+pub fn render_default_export(ctx: &RenderContext) -> miette::Result<String> {
     render(ctx, DEFAULT_EXPORT_TEMPLATE)
 }
 
 /// Render using a user-supplied template file.
-pub fn render_custom(ctx: &RenderContext, path: &Path) -> anyhow::Result<String> {
+pub fn render_custom(ctx: &RenderContext, path: &Path) -> miette::Result<String> {
     let template = fs::read_to_string(path)
+        .into_diagnostic()
         .with_context(|| format!("failed to read template {}", path.display()))?;
     render(ctx, &template)
 }

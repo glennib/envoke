@@ -12,7 +12,7 @@ name = "envoke"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0.101"
+miette = { version = "7", features = ["fancy"] }
 chrono = { version = "0.4.43", default-features = false, features = ["clock"] }
 clap = { version = "4.5.57", features = ["derive"] }
 clap_complete = "4.5"
