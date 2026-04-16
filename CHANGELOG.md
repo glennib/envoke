@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1](https://github.com/glennib/envoke/compare/v1.8.0...v1.8.1) - 2026-04-15
+
+### Other
+
+- Merge pull request #41 from glennib/renovate/clap-4.x-lockfile
+- Merge pull request #39 from glennib/claude/add-miette-diagnostics-KXtbn
+
 ## [1.8.0](https://github.com/glennib/envoke/compare/v1.7.2...v1.8.0) - 2026-04-15
 
 ### Added
