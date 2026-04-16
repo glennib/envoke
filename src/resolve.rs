@@ -329,6 +329,7 @@ pub fn resolve_all(
     tags: &[String],
     overrides: &[String],
     timestamp: &str,
+    parallel: bool,
 ) -> Result<Vec<Resolved>, Vec<ResolveError>> {
     let active_tags: HashSet<&str> = tags.iter().map(String::as_str).collect();
     let mut sources: BTreeMap<String, Source> = BTreeMap::new();
@@ -423,11 +424,27 @@ pub fn resolve_all(
 
     let order = topological_sort(&sources, environment)?;
 
-    let mut resolved_values: HashMap<String, String> = HashMap::new();
-    let mut results = Vec::new();
+    // Partition into three groups: literals (instant), external commands
+    // (subprocess I/O — worth parallelizing), and templates (depend on
+    // previously resolved values — must stay sequential).
+    let mut literals: Vec<&String> = Vec::new();
+    let mut external: Vec<&String> = Vec::new();
+    let mut templates: Vec<&String> = Vec::new();
 
     for name in &order {
-        let source = &sources[name];
+        match &sources[name.as_str()] {
+            Source::Literal(_) => literals.push(name),
+            Source::Cmd(_) | Source::Sh(_) => external.push(name),
+            Source::Template(_) => templates.push(name),
+            Source::Skip(_) => unreachable!("skip sources are filtered before resolution"),
+        }
+    }
+
+    // Resolve literals inline — no I/O, no threads needed.
+    let mut resolved_values: HashMap<String, String> = HashMap::new();
+
+    for name in &literals {
+        let source = &sources[name.as_str()];
         let value = resolve_source(
             source,
             name,
@@ -438,15 +455,96 @@ pub fn resolve_all(
             &resolved_values,
         )
         .map_err(|e| vec![e])?;
-        resolved_values.insert(name.clone(), value.clone());
-        let description = config.variables[name].description.clone();
-        results.push(Resolved {
-            name: name.clone(),
-            value,
-            description,
-        });
+        resolved_values.insert((*name).clone(), value);
     }
 
+    // Resolve cmd/sh sources — in parallel via scoped threads, or
+    // sequentially if parallel resolution is disabled.
+    if parallel {
+        let resolved_ref = &resolved_values;
+        let parallel_results: Vec<_> = std::thread::scope(|s| {
+            let handles: Vec<_> = external
+                .iter()
+                .map(|name| {
+                    let source = &sources[name.as_str()];
+                    s.spawn(move || {
+                        let value = resolve_source(
+                            source,
+                            name,
+                            environment,
+                            tags,
+                            overrides,
+                            timestamp,
+                            resolved_ref,
+                        );
+                        (*name, value)
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("thread panicked during source resolution"))
+                .collect()
+        });
+
+        let mut errors: Vec<ResolveError> = Vec::new();
+        for (name, result) in parallel_results {
+            match result {
+                Ok(value) => {
+                    resolved_values.insert(name.clone(), value);
+                }
+                Err(e) => {
+                    errors.push(e);
+                }
+            }
+        }
+        if !errors.is_empty() {
+            return Err(errors);
+        }
+    } else {
+        for name in &external {
+            let source = &sources[name.as_str()];
+            let value = resolve_source(
+                source,
+                name,
+                environment,
+                tags,
+                overrides,
+                timestamp,
+                &resolved_values,
+            )
+            .map_err(|e| vec![e])?;
+            resolved_values.insert((*name).clone(), value);
+        }
+    }
+
+    // Resolve templates sequentially in topological order.
+    for name in &templates {
+        let source = &sources[name.as_str()];
+        let value = resolve_source(
+            source,
+            name,
+            environment,
+            tags,
+            overrides,
+            timestamp,
+            &resolved_values,
+        )
+        .map_err(|e| vec![e])?;
+        resolved_values.insert((*name).clone(), value);
+    }
+
+    let mut results: Vec<Resolved> = order
+        .iter()
+        .map(|name| {
+            let description = config.variables[name].description.clone();
+            Resolved {
+                name: name.clone(),
+                value: resolved_values.remove(name.as_str()).unwrap(),
+                description,
+            }
+        })
+        .collect();
     results.sort_by(|a, b| a.name.cmp(&b.name));
 
     Ok(results)
@@ -465,7 +563,7 @@ mod tests {
         tags: &[String],
         overrides: &[String],
     ) -> Result<Vec<Resolved>, Vec<ResolveError>> {
-        resolve_all(config, environment, tags, overrides, TS)
+        resolve_all(config, environment, tags, overrides, TS, true)
     }
 
     fn literal(value: &str) -> Source {

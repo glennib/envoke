@@ -52,34 +52,48 @@ struct Cli {
         long,
         long_help = "\
 Use a custom output template file instead of the built-in format.
-The template uses Jinja2 syntax (minijinja).
+The template \
+                     uses Jinja2 syntax (minijinja).
 
 Template context:
 
-  variables  Map of name -> {value, description}. Iterate with:
-               {% for name, var in variables | items %}
+  variables  Map of name -> {value, \
+                     description}. Iterate with:
+               {% for name, var in variables | items \
+                     %}
              Access fields: {{ variables.DB_URL.value }}
 
-  v          Flat map of name -> value string. Shorthand:
+  v          Flat map \
+                     of name -> value string. Shorthand:
                {{ v.DB_URL }}
 
-  meta       Invocation metadata:
+  meta       Invocation \
+                     metadata:
                meta.timestamp        RFC 3339 timestamp
-               meta.invocation       Full CLI invocation string
-               meta.invocation_args  CLI args as a list
-               meta.environment      Target environment name
+               \
+                     meta.invocation       Full CLI invocation string
+               meta.invocation_args  \
+                     CLI args as a list
+               meta.environment      Target environment name\
+                     
                meta.config_file      Path to the config file
-               meta.tags             Active --tag values as a list
-               meta.overrides        Active --override values as a list
+               meta.tags             \
+                     Active --tag values as a list
+               meta.overrides        Active --override \
+                     values as a list
 
 Available filters:
 
   Built-in (minijinja builtins):
-    upper, lower, replace, trim, default, join, sort, length,
-    first, last, reverse, title, capitalize, list, int, float,
+    upper, lower, \
+                     replace, trim, default, join, sort, length,
+    first, last, reverse, title, capitalize, \
+                     list, int, float,
     abs, round, batch, slice, indent, truncate, unique, map,
-    select, reject, selectattr, rejectattr, tojson, and more.
-    See https://docs.rs/minijinja/latest/minijinja/filters
+    \
+                     select, reject, selectattr, rejectattr, tojson, and more.
+    See https://docs.rs/minijinja/latest/minijinja/filters\
+                     
 
   Additional filters:
     shell_escape  Escapes single quotes for shell safety
@@ -122,12 +136,15 @@ envoke.yaml) also have access to a `meta` object:
     #[arg(long)]
     completions: Option<clap_complete::Shell>,
 
+    /// Disable parallel resolution of command and shell sources.
+    #[arg(long)]
+    no_parallel: bool,
+
     /// Suppress informational messages on stderr.
     #[arg(short, long)]
     quiet: bool,
 }
 
-#[allow(clippy::too_many_lines)]
 fn run() -> miette::Result<()> {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
@@ -216,8 +233,16 @@ fn run() -> miette::Result<()> {
 
         let timestamp = chrono::Local::now().to_rfc3339();
 
-        let resolved = resolve::resolve_all(&config, &environment, &tags, &overrides, &timestamp)
-            .map_err(|errors| error::ResolveErrors { errors })?;
+        let parallel = !cli.no_parallel;
+        let resolved = resolve::resolve_all(
+            &config,
+            &environment,
+            &tags,
+            &overrides,
+            &timestamp,
+            parallel,
+        )
+        .map_err(|errors| error::ResolveErrors { errors })?;
 
         let invocation_args: Vec<String> = std::env::args().collect();
         let ctx = render::RenderContext {
