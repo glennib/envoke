@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0](https://github.com/glennib/envoke/compare/v1.8.1...v1.9.0) - 2026-04-16
+
+### Added
+
+- parallelize cmd/sh source resolution
+
+### Fixed
+
+- disable `format_strings` in rustfmt to prevent mangling help text
+
 ## [1.8.1](https://github.com/glennib/envoke/compare/v1.8.0...v1.8.1) - 2026-04-15
 
 ### Other
