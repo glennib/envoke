@@ -18,7 +18,10 @@ mod resolve;
 struct Cli {
     /// Target environment (e.g. local, prod). Not required with --schema or
     /// --list-* flags.
-    #[arg(required_unless_present_any = ["schema", "completions", "list_environments", "list_overrides", "list_tags", "list_everything"])]
+    #[arg(
+        env = "ENVOKE_ENV",
+        required_unless_present_any = ["schema", "completions", "list_environments", "list_overrides", "list_tags", "list_everything"]
+    )]
     environment: Option<String>,
 
     /// Write output to a file instead of stdout.
