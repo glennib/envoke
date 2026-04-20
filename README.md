@@ -107,6 +107,39 @@ Or write them to a file:
 envoke local --output .env
 ```
 
+## Shell integration with mise
+
+If your project uses [mise](https://mise.jdx.dev/) to manage tools, the
+[envoke-env](https://github.com/glennib/envoke-env) plugin activates envoke
+on shell entry — no manual `eval` or sourcing needed.
+
+```toml
+# mise.toml
+[tools]
+"github:glennib/envoke" = "1.9.0"
+
+[plugins]
+envoke = "https://github.com/glennib/envoke-env#v1.0.0"
+
+[env]
+_.envoke = { fallback_environment = "local", tools = true }
+```
+
+Put the target environment name in `.envoke-env` (gitignored):
+
+```
+staging
+```
+
+When mise activates, the plugin runs `envoke staging` against your
+`envoke.yaml` and injects the resolved variables. Switch environments with
+`echo prod > .envoke-env`; the plugin watches the file and re-evaluates
+on the next activation. Tags and overrides can be added on subsequent lines
+(`tag:vault`, `override:read-replica`).
+
+See the [envoke-env README](https://github.com/glennib/envoke-env) for
+caching, the fallback environment, and other configuration options.
+
 ## Configuration
 
 The config file (default: `envoke.yaml`) has a single top-level key `variables`
