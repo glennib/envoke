@@ -4,12 +4,13 @@
 # Copy to envoke.yaml and adapt for your project.
 #
 # Usage:
-#   envoke local                          # resolve for "local" environment
-#   envoke prod                           # resolve for "prod" environment
-#   envoke prod --prepend-export          # prefix each line with "export "
-#   envoke prod -o .env                   # write to file
-#   envoke prod --tag vault               # include vault-tagged variables
-#   envoke prod --override read-replica   # activate the read-replica override
+#   envoke render local                          # resolve for "local" environment
+#   envoke render prod                            # resolve for "prod" environment
+#   envoke render prod --prepend-export           # prefix each line with "export "
+#   envoke render prod -o .env                    # write to file
+#   envoke render prod --tag vault                # include vault-tagged variables
+#   envoke render prod --override read-replica    # activate the read-replica override
+#   envoke exec prod -- psql                      # exec psql with vars overlaid
 
 variables:
   # --- literal: fixed string values ---

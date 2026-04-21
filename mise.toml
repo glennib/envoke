@@ -39,7 +39,7 @@ run = "cargo build --release"
 
 [tasks.schema]
 description = "Output JSON Schema to stdout"
-run = "cargo run --release -- --schema | jq --sort-keys"
+run = "cargo run --release -- schema | jq --sort-keys"
 
 [tasks."schema:write"]
 description = "Write JSON Schema to envoke.schema.json"

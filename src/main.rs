@@ -1,8 +1,12 @@
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 
+use clap::Args;
 use clap::CommandFactory;
 use clap::Parser;
+use clap::Subcommand;
+use clap::ValueEnum;
 use miette::Context;
 use miette::IntoDiagnostic;
 use tracing_subscriber::EnvFilter;
@@ -21,43 +25,80 @@ mod resolve;
     version,
     after_help = "\
 Examples:
-  envoke prod                           Print resolved vars as NAME='value' lines
-  envoke prod --format json             Print resolved vars as a JSON object
-  envoke prod --format dotenv           Print resolved vars as a .env file
-  envoke prod --prepend-export          Print `export NAME='value'` lines
-  envoke prod --output .env             Write resolved vars to .env
-  envoke prod -- psql                   Exec psql with resolved vars overlaid
-  envoke prod -- sh -c 'echo $DB_URL'   Exec an inline script",
+  envoke render prod                          Print resolved vars as NAME='value' lines
+  envoke r prod --format json                 Print resolved vars as a JSON object (r = render)
+  envoke render prod --format dotenv          Print resolved vars as a .env file
+  envoke render prod --prepend-export         Print `export NAME='value'` lines
+  envoke render prod --output .env            Write resolved vars to .env
+  envoke exec prod -- psql                    Exec psql with resolved vars overlaid
+  envoke x prod -- sh -c 'echo $DB_URL'       Exec an inline script (x = exec)
+  envoke meta environments                    Enumerate environment names from the config
+  envoke meta all                             Enumerate environments, tags, and overrides
+  envoke schema                               Print JSON Schema for envoke.yaml
+  envoke completions zsh                      Print shell completions",
     verbatim_doc_comment
 )]
-#[allow(clippy::struct_excessive_bools)]
 struct Cli {
-    /// Target environment (e.g. local, prod). Not required with --schema,
-    /// --completions, or --list-* flags.
-    #[arg(
-        env = "ENVOKE_ENV",
-        verbatim_doc_comment,
-        required_unless_present_any = ["schema", "completions", "list_environments", "list_overrides", "list_tags", "list_everything"]
-    )]
-    environment: Option<String>,
+    /// Path to config file.
+    #[arg(short, long, default_value = "envoke.yaml", global = true)]
+    config: PathBuf,
 
-    /// Write output to a file instead of stdout.
-    #[arg(short, long)]
-    output: Option<PathBuf>,
+    /// Suppress informational messages on stderr.
+    #[arg(short, long, global = true)]
+    quiet: bool,
+
+    /// Disable parallel resolution of command and shell sources.
+    #[arg(long, global = true)]
+    no_parallel: bool,
 
     /// Only include tagged variables with a matching tag. Repeatable.
     /// Untagged variables are always included.
-    #[arg(short = 't', long = "tag", verbatim_doc_comment)]
+    #[arg(short = 't', long = "tag", global = true, verbatim_doc_comment)]
     tags: Vec<String>,
 
     /// Include all tagged variables regardless of their tags.
-    #[arg(long, conflicts_with = "tags")]
+    #[arg(long, global = true, conflicts_with = "tags")]
     all_tags: bool,
 
     /// Select named overrides for source selection. Repeatable.
     /// Per variable, at most one active override may be defined.
-    #[arg(short = 'O', long = "override", verbatim_doc_comment)]
+    #[arg(short = 'O', long = "override", global = true, verbatim_doc_comment)]
     overrides: Vec<String>,
+
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Resolve variables and print or write them.
+    #[command(alias = "r")]
+    Render(RenderArgs),
+
+    /// Resolve variables and exec a command with them overlaid on the current
+    /// process environment.
+    #[command(alias = "x")]
+    Exec(ExecArgs),
+
+    /// Enumerate names of a config dimension (environments, tags, overrides).
+    Meta(MetaArgs),
+
+    /// Print the JSON Schema for envoke.yaml and exit.
+    Schema,
+
+    /// Generate shell completions for the given shell and exit.
+    Completions(CompletionsArgs),
+}
+
+#[derive(Args)]
+struct RenderArgs {
+    /// Target environment (e.g. local, prod).
+    #[arg(env = "ENVOKE_ENV")]
+    env: String,
+
+    /// Write output to a file instead of stdout.
+    #[arg(short, long)]
+    output: Option<PathBuf>,
 
     /// Select a built-in output format preset.
     #[arg(
@@ -98,10 +139,6 @@ Notes:
     /// Prefix each line with `export`. Ignored when --template is used.
     #[arg(long)]
     prepend_export: bool,
-
-    /// Path to config file.
-    #[arg(short, long, default_value = "envoke.yaml")]
-    config: PathBuf,
 
     /// Use a custom output template file instead of the built-in format.
     #[arg(
@@ -152,39 +189,13 @@ envoke.yaml) also have access to a `meta` object:
   meta.timestamp        RFC 3339 timestamp"
     )]
     template: Option<PathBuf>,
+}
 
-    /// Print the JSON Schema for envoke.yaml and exit.
-    #[arg(long)]
-    schema: bool,
-
-    /// List all environment names found in the config and exit.
-    #[arg(long, group = "list")]
-    list_environments: bool,
-
-    /// List all override names found in the config and exit.
-    #[arg(long, group = "list")]
-    list_overrides: bool,
-
-    /// List all tag names found in the config and exit.
-    #[arg(long, group = "list")]
-    list_tags: bool,
-
-    /// List all environments, overrides, and tags found in the config and exit.
-    /// Each line is prefixed with the type (environment, override, tag).
-    #[arg(long, group = "list", verbatim_doc_comment)]
-    list_everything: bool,
-
-    /// Generate shell completions for the given shell and exit.
-    #[arg(long)]
-    completions: Option<clap_complete::Shell>,
-
-    /// Disable parallel resolution of command and shell sources.
-    #[arg(long)]
-    no_parallel: bool,
-
-    /// Suppress informational messages on stderr.
-    #[arg(short, long)]
-    quiet: bool,
+#[derive(Args)]
+struct ExecArgs {
+    /// Target environment (e.g. local, prod).
+    #[arg(env = "ENVOKE_ENV")]
+    env: String,
 
     /// Command to execute with resolved variables overlaid on the current
     /// environment. Everything after `--` is passed verbatim to the child.
@@ -199,21 +210,34 @@ envoke.yaml) also have access to a `meta` object:
         allow_hyphen_values = true,
         value_name = "COMMAND",
         num_args = 1..,
+        required = true,
         verbatim_doc_comment,
-        conflicts_with_all = [
-            "output",
-            "template",
-            "format",
-            "prepend_export",
-            "schema",
-            "completions",
-            "list_environments",
-            "list_overrides",
-            "list_tags",
-            "list_everything",
-        ],
     )]
     command: Vec<String>,
+}
+
+#[derive(Args)]
+struct MetaArgs {
+    /// Which config dimension to enumerate.
+    target: MetaTarget,
+}
+
+#[derive(Copy, Clone, ValueEnum)]
+enum MetaTarget {
+    /// Environment names found across all `envs` maps.
+    Environments,
+    /// Tag names found across all variables.
+    Tags,
+    /// Override names found across all variables.
+    Overrides,
+    /// All three (each line prefixed with `environment:`, `tag:`, `override:`).
+    All,
+}
+
+#[derive(Args)]
+struct CompletionsArgs {
+    /// Shell to generate completions for.
+    shell: clap_complete::Shell,
 }
 
 fn run() -> miette::Result<()> {
@@ -224,47 +248,74 @@ fn run() -> miette::Result<()> {
 
     let cli = Cli::parse();
 
-    if cli.schema {
-        let schema = schemars::schema_for!(config::Config);
-        let json = serde_json::to_string_pretty(&schema)
-            .into_diagnostic()
-            .context("failed to serialize schema")?;
-        if let Some(path) = &cli.output {
-            fs::write(path, &json)
+    match cli.cmd {
+        Cmd::Schema => {
+            let schema = schemars::schema_for!(config::Config);
+            let json = serde_json::to_string_pretty(&schema)
                 .into_diagnostic()
-                .with_context(|| format!("failed to write {}", path.display()))?;
-        } else {
+                .context("failed to serialize schema")?;
             println!("{json}");
+            Ok(())
         }
-        return Ok(());
+        Cmd::Completions(args) => {
+            clap_complete::generate(
+                args.shell,
+                &mut Cli::command(),
+                "envoke",
+                &mut std::io::stdout(),
+            );
+            Ok(())
+        }
+        Cmd::Meta(args) => cmd_meta(&cli.config, args.target),
+        Cmd::Render(args) => cmd_render(
+            args,
+            &cli.config,
+            cli.quiet,
+            cli.no_parallel,
+            cli.tags,
+            cli.all_tags,
+            cli.overrides,
+        ),
+        Cmd::Exec(args) => cmd_exec(
+            args,
+            &cli.config,
+            cli.no_parallel,
+            cli.tags,
+            cli.all_tags,
+            cli.overrides,
+        ),
     }
+}
 
-    if let Some(shell) = cli.completions {
-        clap_complete::generate(shell, &mut Cli::command(), "envoke", &mut std::io::stdout());
-        return Ok(());
-    }
+fn load_config(config_path: &Path) -> miette::Result<config::Config> {
+    let yaml = fs::read_to_string(config_path)
+        .into_diagnostic()
+        .with_context(|| format!("failed to read {}", config_path.display()))?;
+    serde_yml::from_str(&yaml)
+        .into_diagnostic()
+        .with_context(|| format!("failed to parse {}", config_path.display()))
+}
 
-    if cli.list_environments || cli.list_overrides || cli.list_tags || cli.list_everything {
-        let yaml = fs::read_to_string(&cli.config)
-            .into_diagnostic()
-            .with_context(|| format!("failed to read {}", cli.config.display()))?;
-        let config: config::Config = serde_yml::from_str(&yaml)
-            .into_diagnostic()
-            .with_context(|| format!("failed to parse {}", cli.config.display()))?;
+fn cmd_meta(config_path: &Path, target: MetaTarget) -> miette::Result<()> {
+    let config = load_config(config_path)?;
 
-        if cli.list_environments {
+    match target {
+        MetaTarget::Environments => {
             for name in config.environments() {
                 println!("{name}");
             }
-        } else if cli.list_overrides {
-            for name in config.override_names() {
-                println!("{name}");
-            }
-        } else if cli.list_tags {
+        }
+        MetaTarget::Tags => {
             for name in config.tag_names() {
                 println!("{name}");
             }
-        } else if cli.list_everything {
+        }
+        MetaTarget::Overrides => {
+            for name in config.override_names() {
+                println!("{name}");
+            }
+        }
+        MetaTarget::All => {
             for name in config.environments() {
                 println!("environment:{name}");
             }
@@ -275,76 +326,89 @@ fn run() -> miette::Result<()> {
                 println!("tag:{name}");
             }
         }
-        return Ok(());
     }
+    Ok(())
+}
 
-    let tags = cli.tags;
-    let all_tags = cli.all_tags;
-    let overrides = cli.overrides;
-    let environment = cli.environment.expect("required by clap");
-    let output = cli.output;
-    let prepend_export = cli.prepend_export;
-    let format = cli.format;
-    let template_path = cli.template;
-    let quiet = cli.quiet;
-    let command = cli.command;
+struct Resolution {
+    resolved: Vec<resolve::Resolved>,
+    tags: Vec<String>,
+    overrides: Vec<String>,
+    timestamp: String,
+}
 
-    let yaml = fs::read_to_string(&cli.config)
-        .into_diagnostic()
-        .with_context(|| format!("failed to read {}", cli.config.display()))?;
-    let config: config::Config = serde_yml::from_str(&yaml)
-        .into_diagnostic()
-        .with_context(|| format!("failed to parse {}", cli.config.display()))?;
-
+fn resolve_for(
+    config: &config::Config,
+    environment: &str,
+    tags: Vec<String>,
+    all_tags: bool,
+    overrides: Vec<String>,
+    no_parallel: bool,
+) -> miette::Result<Resolution> {
     let tags = if all_tags { config.tag_names() } else { tags };
+    let timestamp = chrono::Local::now().to_rfc3339();
+    let parallel = !no_parallel;
+    let resolved =
+        resolve::resolve_all(config, environment, &tags, &overrides, &timestamp, parallel)
+            .map_err(|errors| error::ResolveErrors { errors })?;
 
-    // Exec path owns stdout/stderr after handoff; stay silent.
-    if !quiet && command.is_empty() {
+    Ok(Resolution {
+        resolved,
+        tags,
+        overrides,
+        timestamp,
+    })
+}
+
+fn cmd_render(
+    args: RenderArgs,
+    config_path: &Path,
+    quiet: bool,
+    no_parallel: bool,
+    tags: Vec<String>,
+    all_tags: bool,
+    overrides: Vec<String>,
+) -> miette::Result<()> {
+    let environment = args.env;
+    if !quiet {
         eprintln!("Generating environment variables for {environment}...");
     }
 
-    let timestamp = chrono::Local::now().to_rfc3339();
-
-    let parallel = !cli.no_parallel;
-    let resolved = resolve::resolve_all(
+    let config = load_config(config_path)?;
+    let res = resolve_for(
         &config,
         &environment,
-        &tags,
-        &overrides,
-        &timestamp,
-        parallel,
-    )
-    .map_err(|errors| error::ResolveErrors { errors })?;
-
-    if !command.is_empty() {
-        return exec::exec_command(&command, &resolved);
-    }
+        tags,
+        all_tags,
+        overrides,
+        no_parallel,
+    )?;
 
     let invocation_args: Vec<String> = std::env::args().collect();
     let ctx = render::RenderContext {
-        resolved,
+        resolved: res.resolved,
         meta: render::Meta {
-            timestamp,
+            timestamp: res.timestamp,
             invocation: invocation_args.join(" "),
             invocation_args,
             environment,
-            config_file: cli.config.display().to_string(),
-            tags,
-            overrides,
+            config_file: config_path.display().to_string(),
+            tags: res.tags,
+            overrides: res.overrides,
         },
     };
 
-    let content = if let Some(path) = &template_path {
+    let content = if let Some(path) = &args.template {
         render::render_custom(&ctx, path)?
-    } else if let Some(format) = format {
+    } else if let Some(format) = args.format {
         render::render_format(&ctx, format)?
-    } else if prepend_export {
+    } else if args.prepend_export {
         render::render_format(&ctx, render::Format::ShellExport)?
     } else {
         render::render_format(&ctx, render::Format::Shell)?
     };
 
-    if let Some(path) = &output {
+    if let Some(path) = &args.output {
         fs::write(path, &content)
             .into_diagnostic()
             .with_context(|| format!("failed to write {}", path.display()))?;
@@ -356,6 +420,20 @@ fn run() -> miette::Result<()> {
     }
 
     Ok(())
+}
+
+fn cmd_exec(
+    args: ExecArgs,
+    config_path: &Path,
+    no_parallel: bool,
+    tags: Vec<String>,
+    all_tags: bool,
+    overrides: Vec<String>,
+) -> miette::Result<()> {
+    let ExecArgs { env, command } = args;
+    let config = load_config(config_path)?;
+    let res = resolve_for(&config, &env, tags, all_tags, overrides, no_parallel)?;
+    exec::exec_command(&command, &res.resolved)
 }
 
 fn main() -> miette::Result<()> {
@@ -377,12 +455,17 @@ mod cli_tests {
     use clap::Parser;
 
     use super::Cli;
+    use super::Cmd;
+    use super::MetaTarget;
     use super::render::Format;
 
     #[test]
     fn format_json_parses() {
-        let cli = Cli::try_parse_from(["envoke", "prod", "--format", "json"]).unwrap();
-        assert!(matches!(cli.format, Some(Format::Json)));
+        let cli = Cli::try_parse_from(["envoke", "r", "prod", "--format", "json"]).unwrap();
+        let Cmd::Render(args) = cli.cmd else {
+            panic!("expected Render subcommand");
+        };
+        assert!(matches!(args.format, Some(Format::Json)));
     }
 
     #[test]
@@ -390,35 +473,61 @@ mod cli_tests {
         // Canary for heck's kebab-case conversion over the `K` + digit
         // boundary. If this fails, add `#[value(name = "k8s-secret")]` to
         // the variant in render.rs.
-        let cli = Cli::try_parse_from(["envoke", "prod", "--format", "k8s-secret"]).unwrap();
-        assert!(matches!(cli.format, Some(Format::K8sSecret)));
+        let cli = Cli::try_parse_from(["envoke", "r", "prod", "--format", "k8s-secret"]).unwrap();
+        let Cmd::Render(args) = cli.cmd else {
+            panic!("expected Render subcommand");
+        };
+        assert!(matches!(args.format, Some(Format::K8sSecret)));
     }
 
     #[test]
     fn format_github_actions_parses() {
-        let cli = Cli::try_parse_from(["envoke", "prod", "--format", "github-actions"]).unwrap();
-        assert!(matches!(cli.format, Some(Format::GithubActions)));
+        let cli =
+            Cli::try_parse_from(["envoke", "r", "prod", "--format", "github-actions"]).unwrap();
+        let Cmd::Render(args) = cli.cmd else {
+            panic!("expected Render subcommand");
+        };
+        assert!(matches!(args.format, Some(Format::GithubActions)));
     }
 
     #[test]
     fn format_terraform_tfvars_parses() {
-        let cli = Cli::try_parse_from(["envoke", "prod", "--format", "terraform-tfvars"]).unwrap();
-        assert!(matches!(cli.format, Some(Format::TerraformTfvars)));
+        let cli =
+            Cli::try_parse_from(["envoke", "r", "prod", "--format", "terraform-tfvars"]).unwrap();
+        let Cmd::Render(args) = cli.cmd else {
+            panic!("expected Render subcommand");
+        };
+        assert!(matches!(args.format, Some(Format::TerraformTfvars)));
     }
 
     #[test]
     fn format_conflicts_with_template() {
         assert!(
-            Cli::try_parse_from(["envoke", "prod", "--format", "json", "--template", "t.j2",])
-                .is_err()
+            Cli::try_parse_from([
+                "envoke",
+                "r",
+                "prod",
+                "--format",
+                "json",
+                "--template",
+                "t.j2",
+            ])
+            .is_err()
         );
     }
 
     #[test]
     fn format_conflicts_with_prepend_export() {
         assert!(
-            Cli::try_parse_from(["envoke", "prod", "--format", "shell", "--prepend-export",])
-                .is_err()
+            Cli::try_parse_from([
+                "envoke",
+                "r",
+                "prod",
+                "--format",
+                "shell",
+                "--prepend-export",
+            ])
+            .is_err()
         );
     }
 
@@ -426,6 +535,7 @@ mod cli_tests {
     fn format_and_output_coexist() {
         let cli = Cli::try_parse_from([
             "envoke",
+            "r",
             "prod",
             "--format",
             "json",
@@ -433,38 +543,82 @@ mod cli_tests {
             "/tmp/x.json",
         ])
         .unwrap();
-        assert!(matches!(cli.format, Some(Format::Json)));
+        let Cmd::Render(args) = cli.cmd else {
+            panic!("expected Render subcommand");
+        };
+        assert!(matches!(args.format, Some(Format::Json)));
         assert_eq!(
-            cli.output.as_deref().and_then(|p| p.to_str()),
+            args.output.as_deref().and_then(|p| p.to_str()),
             Some("/tmp/x.json")
         );
     }
 
     #[test]
-    fn command_conflicts_with_format() {
-        assert!(Cli::try_parse_from(["envoke", "prod", "--format", "json", "--", "psql"]).is_err());
+    fn exec_rejects_render_only_format_flag() {
+        // --format is a render-only flag; under `exec` it should not parse.
+        assert!(
+            Cli::try_parse_from(["envoke", "exec", "prod", "--format", "json", "--", "psql"])
+                .is_err()
+        );
     }
 
     #[test]
-    fn no_command_parses_as_normal_invocation() {
-        let cli = Cli::try_parse_from(["envoke", "prod"]).unwrap();
-        assert_eq!(cli.environment.as_deref(), Some("prod"));
-        assert!(cli.command.is_empty());
+    fn exec_rejects_render_only_output_flag() {
+        assert!(
+            Cli::try_parse_from(["envoke", "exec", "prod", "--output", "x", "--", "psql"]).is_err()
+        );
+    }
+
+    #[test]
+    fn exec_rejects_render_only_template_flag() {
+        assert!(
+            Cli::try_parse_from(["envoke", "exec", "prod", "--template", "t.j2", "--", "psql",])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn exec_rejects_render_only_prepend_export_flag() {
+        assert!(
+            Cli::try_parse_from(["envoke", "exec", "prod", "--prepend-export", "--", "psql"])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn bare_envoke_env_errors() {
+        // v1's `envoke prod` shorthand is gone; now it's an unknown subcommand.
+        assert!(Cli::try_parse_from(["envoke", "prod"]).is_err());
     }
 
     #[test]
     fn command_after_double_dash_is_collected() {
-        let cli = Cli::try_parse_from(["envoke", "prod", "--", "psql"]).unwrap();
-        assert_eq!(cli.environment.as_deref(), Some("prod"));
-        assert_eq!(cli.command, vec!["psql".to_owned()]);
+        let cli = Cli::try_parse_from(["envoke", "exec", "prod", "--", "psql"]).unwrap();
+        let Cmd::Exec(args) = cli.cmd else {
+            panic!("expected Exec subcommand");
+        };
+        assert_eq!(args.env, "prod");
+        assert_eq!(args.command, vec!["psql".to_owned()]);
     }
 
     #[test]
     fn command_args_with_hyphens_pass_through() {
-        let cli =
-            Cli::try_parse_from(["envoke", "prod", "--", "psql", "--host=db", "-U", "me"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "envoke",
+            "exec",
+            "prod",
+            "--",
+            "psql",
+            "--host=db",
+            "-U",
+            "me",
+        ])
+        .unwrap();
+        let Cmd::Exec(args) = cli.cmd else {
+            panic!("expected Exec subcommand");
+        };
         assert_eq!(
-            cli.command,
+            args.command,
             vec![
                 "psql".to_owned(),
                 "--host=db".to_owned(),
@@ -476,36 +630,21 @@ mod cli_tests {
 
     #[test]
     fn positional_without_double_dash_errors() {
-        // `envoke prod psql` should fail — the command must come after `--`.
-        assert!(Cli::try_parse_from(["envoke", "prod", "psql"]).is_err());
+        // `envoke exec prod psql` should fail — the command must come after `--`.
+        assert!(Cli::try_parse_from(["envoke", "exec", "prod", "psql"]).is_err());
     }
 
     #[test]
-    fn command_conflicts_with_output() {
-        assert!(Cli::try_parse_from(["envoke", "prod", "--output", "x", "--", "psql"]).is_err());
-    }
-
-    #[test]
-    fn command_conflicts_with_template() {
-        assert!(
-            Cli::try_parse_from(["envoke", "prod", "--template", "t.j2", "--", "psql"]).is_err()
-        );
-    }
-
-    #[test]
-    fn command_conflicts_with_prepend_export() {
-        assert!(Cli::try_parse_from(["envoke", "prod", "--prepend-export", "--", "psql"]).is_err());
-    }
-
-    #[test]
-    fn command_conflicts_with_list_flags() {
-        assert!(Cli::try_parse_from(["envoke", "--list-environments", "--", "psql"]).is_err());
+    fn meta_has_no_trailing_command() {
+        // `meta` does not collect a trailing command — `--` + extra args errors.
+        assert!(Cli::try_parse_from(["envoke", "meta", "environments", "--", "psql"]).is_err());
     }
 
     #[test]
     fn command_is_compatible_with_tags_and_overrides() {
         let cli = Cli::try_parse_from([
             "envoke",
+            "exec",
             "prod",
             "--tag",
             "vault",
@@ -517,6 +656,86 @@ mod cli_tests {
         .unwrap();
         assert_eq!(cli.tags, vec!["vault".to_owned()]);
         assert_eq!(cli.overrides, vec!["read-replica".to_owned()]);
-        assert_eq!(cli.command, vec!["psql".to_owned()]);
+        let Cmd::Exec(args) = cli.cmd else {
+            panic!("expected Exec subcommand");
+        };
+        assert_eq!(args.command, vec!["psql".to_owned()]);
+    }
+
+    #[test]
+    fn render_alias_r_works() {
+        let cli = Cli::try_parse_from(["envoke", "r", "prod"]).unwrap();
+        let Cmd::Render(args) = cli.cmd else {
+            panic!("expected Render subcommand");
+        };
+        assert_eq!(args.env, "prod");
+    }
+
+    #[test]
+    fn exec_alias_x_works() {
+        let cli = Cli::try_parse_from(["envoke", "x", "prod", "--", "psql"]).unwrap();
+        let Cmd::Exec(args) = cli.cmd else {
+            panic!("expected Exec subcommand");
+        };
+        assert_eq!(args.env, "prod");
+        assert_eq!(args.command, vec!["psql".to_owned()]);
+    }
+
+    #[test]
+    fn meta_target_parses() {
+        let cli = Cli::try_parse_from(["envoke", "meta", "tags"]).unwrap();
+        let Cmd::Meta(args) = cli.cmd else {
+            panic!("expected Meta subcommand");
+        };
+        assert!(matches!(args.target, MetaTarget::Tags));
+    }
+
+    #[test]
+    fn meta_all_variant_parses() {
+        let cli = Cli::try_parse_from(["envoke", "meta", "all"]).unwrap();
+        let Cmd::Meta(args) = cli.cmd else {
+            panic!("expected Meta subcommand");
+        };
+        assert!(matches!(args.target, MetaTarget::All));
+    }
+
+    #[test]
+    fn global_tag_before_subcommand() {
+        let cli = Cli::try_parse_from(["envoke", "--tag", "vault", "r", "prod"]).unwrap();
+        assert_eq!(cli.tags, vec!["vault".to_owned()]);
+    }
+
+    #[test]
+    fn global_tag_after_subcommand() {
+        let cli = Cli::try_parse_from(["envoke", "r", "prod", "--tag", "vault"]).unwrap();
+        assert_eq!(cli.tags, vec!["vault".to_owned()]);
+    }
+
+    #[test]
+    fn global_tag_replace_semantics_across_boundary() {
+        // With `global = true` on a `Vec<String>`, clap collects the
+        // subcommand-level occurrences as a fresh ArgMatches value, replacing
+        // (not appending to) the root-level occurrences. Documented so the
+        // behavior doesn't drift silently.
+        let cli = Cli::try_parse_from(["envoke", "--tag", "a", "r", "prod", "--tag", "b"]).unwrap();
+        assert_eq!(cli.tags, vec!["b".to_owned()]);
+    }
+
+    #[test]
+    fn envoke_env_fills_positional() {
+        // With ENVOKE_ENV set, the env positional becomes optional.
+        // SAFETY: test sets and unsets a process-wide env var; nextest runs
+        // each test in its own process, so this is isolated.
+        unsafe {
+            std::env::set_var("ENVOKE_ENV", "prod");
+        }
+        let cli = Cli::try_parse_from(["envoke", "r"]).unwrap();
+        unsafe {
+            std::env::remove_var("ENVOKE_ENV");
+        }
+        let Cmd::Render(args) = cli.cmd else {
+            panic!("expected Render subcommand");
+        };
+        assert_eq!(args.env, "prod");
     }
 }
