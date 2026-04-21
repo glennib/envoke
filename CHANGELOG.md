@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0](https://github.com/glennib/envoke/compare/v1.10.1...v1.11.0) - 2026-04-21
+
+### Added
+
+- *(cli)* add exec form `envoke <env> -- <cmd>`
+
+### Other
+
+- polish README and sync CLAUDE.md for the exec form
+
 ## [1.10.1](https://github.com/glennib/envoke/compare/v1.10.0...v1.10.1) - 2026-04-20
 
 ### Other
