@@ -28,7 +28,7 @@ Examples:
   envoke render prod                          Print resolved vars as NAME='value' lines
   envoke r prod --format json                 Print resolved vars as a JSON object (r = render)
   envoke render prod --format dotenv          Print resolved vars as a .env file
-  envoke render prod --prepend-export         Print `export NAME='value'` lines
+  envoke render prod --format shell-export    Print `export NAME='value'` lines
   envoke render prod --output .env            Write resolved vars to .env
   envoke exec prod -- psql                    Exec psql with resolved vars overlaid
   envoke x prod -- sh -c 'echo $DB_URL'       Exec an inline script (x = exec)
@@ -105,7 +105,7 @@ struct RenderArgs {
         short = 'f',
         long,
         value_enum,
-        conflicts_with_all = ["template", "prepend_export"],
+        conflicts_with = "template",
         long_help = "\
 Select a built-in output format preset.
 
@@ -124,9 +124,7 @@ Presets:
   terraform-tfvars  Terraform *.tfvars format: KEY = \"value\".
 
 Notes:
-  - `--format` conflicts with `--template` and `--prepend-export`.
-  - `--format shell-export` supersedes `--prepend-export`; use
-    one of them, not both (they conflict).
+  - `--format` conflicts with `--template`.
   - `--format json` output is also valid YAML 1.2 if you prefer
     the compact form.
   - Some dotenv dialects (e.g. dotenvx) expand $VAR inside
@@ -135,10 +133,6 @@ Notes:
   - For fully custom output, use `--template <file.j2>` instead."
     )]
     format: Option<render::Format>,
-
-    /// Prefix each line with `export`. Ignored when --template is used.
-    #[arg(long)]
-    prepend_export: bool,
 
     /// Use a custom output template file instead of the built-in format.
     #[arg(
@@ -402,8 +396,6 @@ fn cmd_render(
         render::render_custom(&ctx, path)?
     } else if let Some(format) = args.format {
         render::render_format(&ctx, format)?
-    } else if args.prepend_export {
-        render::render_format(&ctx, render::Format::ShellExport)?
     } else {
         render::render_format(&ctx, render::Format::Shell)?
     };
@@ -517,21 +509,6 @@ mod cli_tests {
     }
 
     #[test]
-    fn format_conflicts_with_prepend_export() {
-        assert!(
-            Cli::try_parse_from([
-                "envoke",
-                "r",
-                "prod",
-                "--format",
-                "shell",
-                "--prepend-export",
-            ])
-            .is_err()
-        );
-    }
-
-    #[test]
     fn format_and_output_coexist() {
         let cli = Cli::try_parse_from([
             "envoke",
@@ -573,14 +550,6 @@ mod cli_tests {
     fn exec_rejects_render_only_template_flag() {
         assert!(
             Cli::try_parse_from(["envoke", "exec", "prod", "--template", "t.j2", "--", "psql",])
-                .is_err()
-        );
-    }
-
-    #[test]
-    fn exec_rejects_render_only_prepend_export_flag() {
-        assert!(
-            Cli::try_parse_from(["envoke", "exec", "prod", "--prepend-export", "--", "psql"])
                 .is_err()
         );
     }

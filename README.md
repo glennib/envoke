@@ -138,7 +138,7 @@ envoke exec prod -- kubectl apply -f manifest.yaml
 Alternatively, source them into your shell:
 
 ```sh
-eval "$(envoke render local --prepend-export)"
+eval "$(envoke render local --format shell-export)"
 ```
 
 Or write them to a file:
@@ -174,8 +174,8 @@ directly. On other platforms, envoke spawns the child and forwards its exit
 code.
 
 **Subcommand separation.** Output-shaping flags (`--output`, `--template`,
-`--format`, `--prepend-export`) live on `render`; the trailing `-- <command>`
-lives on `exec`. Pick the subcommand that matches your intent.
+`--format`) live on `render`; the trailing `-- <command>` lives on
+`exec`. Pick the subcommand that matches your intent.
 
 ## Shell integration with mise
 
@@ -526,8 +526,7 @@ Usable before *or* after the subcommand.
 |--------|-------------|
 | `<ENV>` | Target environment name (e.g. `local`, `prod`). Can also be set via the `ENVOKE_ENV` environment variable. |
 | `-o, --output <PATH>` | Write output to a file instead of stdout. |
-| `-f, --format <FORMAT>` | Select a built-in output preset: `shell` (default), `shell-export`, `dotenv`, `json`, `yaml`, `k8s-secret`, `github-actions`, `terraform-tfvars`. See [Output formats](#output-formats). Conflicts with `--template` and `--prepend-export`. |
-| `--prepend-export` | Prefix each line with `export`. Superseded by `--format shell-export` (the two conflict; use one or the other). Ignored when `--template` is used. |
+| `-f, --format <FORMAT>` | Select a built-in output preset: `shell` (default), `shell-export`, `dotenv`, `json`, `yaml`, `k8s-secret`, `github-actions`, `terraform-tfvars`. See [Output formats](#output-formats). Conflicts with `--template`. |
 | `--template <PATH>` | Use a custom output template file instead of a preset. See [Custom templates](#custom-templates). |
 
 ### `exec` options
@@ -595,7 +594,7 @@ shapes most projects need; for anything else, use [`--template`](#custom-templat
 | Format | Output shape | Typical use |
 |--------|--------------|-------------|
 | `shell` *(default)* | `KEY='value'` (POSIX, single-quoted) | `eval "$(envoke render local)"`, `source`, CI shells |
-| `shell-export` | `export KEY='value'` | Same as `shell` with `export` prefix; equivalent to `--prepend-export` |
+| `shell-export` | `export KEY='value'` | Same as `shell` with `export` prefix; use instead of piping to `eval "$(envoke render ...)"` when you want `export` lines for `source` |
 | `dotenv` | `KEY="value"` (JSON-style escapes) | `.env` files consumed by `python-dotenv`, `dotenvy`, `node dotenv` |
 | `json` | Compact JSON object | Feeding structured tools; pipe through `jq .` for pretty output |
 | `yaml` | YAML mapping (block style) | Human-readable config files, `yq` pipelines |

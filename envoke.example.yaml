@@ -6,7 +6,7 @@
 # Usage:
 #   envoke render local                          # resolve for "local" environment
 #   envoke render prod                            # resolve for "prod" environment
-#   envoke render prod --prepend-export           # prefix each line with "export "
+#   envoke render prod --format shell-export      # prefix each line with "export "
 #   envoke render prod -o .env                    # write to file
 #   envoke render prod --tag vault                # include vault-tagged variables
 #   envoke render prod --override read-replica    # activate the read-replica override
