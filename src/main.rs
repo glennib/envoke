@@ -9,17 +9,31 @@ use tracing_subscriber::EnvFilter;
 
 mod config;
 mod error;
+mod exec;
 mod render;
 mod resolve;
 
 #[derive(Parser)]
-#[command(about = "Resolve environment variables from envoke.yaml", version)]
+/// Resolve environment variables from envoke.yaml and either print them, write
+/// them to a file, or exec a command with them overlaid on the current process
+/// environment.
+#[command(
+    version,
+    after_help = "\
+Examples:
+  envoke prod                           Print resolved vars as NAME='value' lines
+  envoke prod --prepend-export          Print `export NAME='value'` lines
+  envoke prod --output .env             Write resolved vars to .env
+  envoke prod -- psql                   Exec psql with resolved vars overlaid
+  envoke prod -- sh -c 'echo $DB_URL'   Exec an inline script"
+)]
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
-    /// Target environment (e.g. local, prod). Not required with --schema or
-    /// --list-* flags.
+    /// Target environment (e.g. local, prod). Not required with --schema,
+    /// --completions, or --list-* flags.
     #[arg(
         env = "ENVOKE_ENV",
+        verbatim_doc_comment,
         required_unless_present_any = ["schema", "completions", "list_environments", "list_overrides", "list_tags", "list_everything"]
     )]
     environment: Option<String>,
@@ -30,7 +44,7 @@ struct Cli {
 
     /// Only include tagged variables with a matching tag. Repeatable.
     /// Untagged variables are always included.
-    #[arg(short = 't', long = "tag")]
+    #[arg(short = 't', long = "tag", verbatim_doc_comment)]
     tags: Vec<String>,
 
     /// Include all tagged variables regardless of their tags.
@@ -39,10 +53,10 @@ struct Cli {
 
     /// Select named overrides for source selection. Repeatable.
     /// Per variable, at most one active override may be defined.
-    #[arg(short = 'O', long = "override")]
+    #[arg(short = 'O', long = "override", verbatim_doc_comment)]
     overrides: Vec<String>,
 
-    /// Prefix each line with `export`. Ignored when `--template` is used.
+    /// Prefix each line with `export`. Ignored when --template is used.
     #[arg(long)]
     prepend_export: bool,
 
@@ -118,7 +132,7 @@ envoke.yaml) also have access to a `meta` object:
 
     /// List all environments, overrides, and tags found in the config and exit.
     /// Each line is prefixed with the type (environment, override, tag).
-    #[arg(long, group = "list")]
+    #[arg(long, group = "list", verbatim_doc_comment)]
     list_everything: bool,
 
     /// Generate shell completions for the given shell and exit.
@@ -132,6 +146,34 @@ envoke.yaml) also have access to a `meta` object:
     /// Suppress informational messages on stderr.
     #[arg(short, long)]
     quiet: bool,
+
+    /// Command to execute with resolved variables overlaid on the current
+    /// environment. Everything after `--` is passed verbatim to the child.
+    ///
+    /// The child inherits envoke's process environment (PATH, HOME, ...); the
+    /// resolved variables from envoke.yaml override any inherited values with
+    /// the same name. On Unix the child replaces envoke's process image (via
+    /// `execvp`), so PID, TTY, and signals carry over directly. On other
+    /// platforms envoke spawns the child and forwards its exit code.
+    #[arg(
+        last = true,
+        allow_hyphen_values = true,
+        value_name = "COMMAND",
+        num_args = 1..,
+        verbatim_doc_comment,
+        conflicts_with_all = [
+            "output",
+            "template",
+            "prepend_export",
+            "schema",
+            "completions",
+            "list_environments",
+            "list_overrides",
+            "list_tags",
+            "list_everything",
+        ],
+    )]
+    command: Vec<String>,
 }
 
 fn run() -> miette::Result<()> {
@@ -196,78 +238,81 @@ fn run() -> miette::Result<()> {
         return Ok(());
     }
 
-    // Default: generate
-    {
-        let tags = cli.tags;
-        let all_tags = cli.all_tags;
-        let overrides = cli.overrides;
-        let environment = cli.environment.expect("required by clap");
-        let output = cli.output;
-        let prepend_export = cli.prepend_export;
-        let template_path = cli.template;
-        let quiet = cli.quiet;
+    let tags = cli.tags;
+    let all_tags = cli.all_tags;
+    let overrides = cli.overrides;
+    let environment = cli.environment.expect("required by clap");
+    let output = cli.output;
+    let prepend_export = cli.prepend_export;
+    let template_path = cli.template;
+    let quiet = cli.quiet;
+    let command = cli.command;
 
-        let yaml = fs::read_to_string(&cli.config)
-            .into_diagnostic()
-            .with_context(|| format!("failed to read {}", cli.config.display()))?;
-        let config: config::Config = serde_yml::from_str(&yaml)
-            .into_diagnostic()
-            .with_context(|| format!("failed to parse {}", cli.config.display()))?;
+    let yaml = fs::read_to_string(&cli.config)
+        .into_diagnostic()
+        .with_context(|| format!("failed to read {}", cli.config.display()))?;
+    let config: config::Config = serde_yml::from_str(&yaml)
+        .into_diagnostic()
+        .with_context(|| format!("failed to parse {}", cli.config.display()))?;
 
-        let tags = if all_tags { config.tag_names() } else { tags };
+    let tags = if all_tags { config.tag_names() } else { tags };
 
-        if !quiet {
-            eprintln!("Generating environment variables for {environment}...");
-        }
-
-        let timestamp = chrono::Local::now().to_rfc3339();
-
-        let parallel = !cli.no_parallel;
-        let resolved = resolve::resolve_all(
-            &config,
-            &environment,
-            &tags,
-            &overrides,
-            &timestamp,
-            parallel,
-        )
-        .map_err(|errors| error::ResolveErrors { errors })?;
-
-        let invocation_args: Vec<String> = std::env::args().collect();
-        let ctx = render::RenderContext {
-            resolved,
-            meta: render::Meta {
-                timestamp,
-                invocation: invocation_args.join(" "),
-                invocation_args,
-                environment,
-                config_file: cli.config.display().to_string(),
-                tags,
-                overrides,
-            },
-        };
-
-        let content = if let Some(path) = &template_path {
-            render::render_custom(&ctx, path)?
-        } else if prepend_export {
-            render::render_default_export(&ctx)?
-        } else {
-            render::render_default(&ctx)?
-        };
-
-        if let Some(path) = &output {
-            fs::write(path, &content)
-                .into_diagnostic()
-                .with_context(|| format!("failed to write {}", path.display()))?;
-            if !quiet {
-                eprintln!("Wrote to {}", path.display());
-            }
-        } else {
-            print!("{content}");
-        }
-
-        Ok(())
+    // Exec path owns stdout/stderr after handoff; stay silent.
+    if !quiet && command.is_empty() {
+        eprintln!("Generating environment variables for {environment}...");
     }
+
+    let timestamp = chrono::Local::now().to_rfc3339();
+
+    let parallel = !cli.no_parallel;
+    let resolved = resolve::resolve_all(
+        &config,
+        &environment,
+        &tags,
+        &overrides,
+        &timestamp,
+        parallel,
+    )
+    .map_err(|errors| error::ResolveErrors { errors })?;
+
+    if !command.is_empty() {
+        return exec::exec_command(&command, &resolved);
+    }
+
+    let invocation_args: Vec<String> = std::env::args().collect();
+    let ctx = render::RenderContext {
+        resolved,
+        meta: render::Meta {
+            timestamp,
+            invocation: invocation_args.join(" "),
+            invocation_args,
+            environment,
+            config_file: cli.config.display().to_string(),
+            tags,
+            overrides,
+        },
+    };
+
+    let content = if let Some(path) = &template_path {
+        render::render_custom(&ctx, path)?
+    } else if prepend_export {
+        render::render_default_export(&ctx)?
+    } else {
+        render::render_default(&ctx)?
+    };
+
+    if let Some(path) = &output {
+        fs::write(path, &content)
+            .into_diagnostic()
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        if !quiet {
+            eprintln!("Wrote to {}", path.display());
+        }
+    } else {
+        print!("{content}");
+    }
+
+    Ok(())
 }
 
 fn main() -> miette::Result<()> {
@@ -282,4 +327,86 @@ fn main() -> miette::Result<()> {
     }))
     .expect("miette hook should only be set once");
     run()
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use clap::Parser;
+
+    use super::Cli;
+
+    #[test]
+    fn no_command_parses_as_normal_invocation() {
+        let cli = Cli::try_parse_from(["envoke", "prod"]).unwrap();
+        assert_eq!(cli.environment.as_deref(), Some("prod"));
+        assert!(cli.command.is_empty());
+    }
+
+    #[test]
+    fn command_after_double_dash_is_collected() {
+        let cli = Cli::try_parse_from(["envoke", "prod", "--", "psql"]).unwrap();
+        assert_eq!(cli.environment.as_deref(), Some("prod"));
+        assert_eq!(cli.command, vec!["psql".to_owned()]);
+    }
+
+    #[test]
+    fn command_args_with_hyphens_pass_through() {
+        let cli =
+            Cli::try_parse_from(["envoke", "prod", "--", "psql", "--host=db", "-U", "me"]).unwrap();
+        assert_eq!(
+            cli.command,
+            vec![
+                "psql".to_owned(),
+                "--host=db".to_owned(),
+                "-U".to_owned(),
+                "me".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn positional_without_double_dash_errors() {
+        // `envoke prod psql` should fail — the command must come after `--`.
+        assert!(Cli::try_parse_from(["envoke", "prod", "psql"]).is_err());
+    }
+
+    #[test]
+    fn command_conflicts_with_output() {
+        assert!(Cli::try_parse_from(["envoke", "prod", "--output", "x", "--", "psql"]).is_err());
+    }
+
+    #[test]
+    fn command_conflicts_with_template() {
+        assert!(
+            Cli::try_parse_from(["envoke", "prod", "--template", "t.j2", "--", "psql"]).is_err()
+        );
+    }
+
+    #[test]
+    fn command_conflicts_with_prepend_export() {
+        assert!(Cli::try_parse_from(["envoke", "prod", "--prepend-export", "--", "psql"]).is_err());
+    }
+
+    #[test]
+    fn command_conflicts_with_list_flags() {
+        assert!(Cli::try_parse_from(["envoke", "--list-environments", "--", "psql"]).is_err());
+    }
+
+    #[test]
+    fn command_is_compatible_with_tags_and_overrides() {
+        let cli = Cli::try_parse_from([
+            "envoke",
+            "prod",
+            "--tag",
+            "vault",
+            "--override",
+            "read-replica",
+            "--",
+            "psql",
+        ])
+        .unwrap();
+        assert_eq!(cli.tags, vec!["vault".to_owned()]);
+        assert_eq!(cli.overrides, vec!["read-replica".to_owned()]);
+        assert_eq!(cli.command, vec!["psql".to_owned()]);
+    }
 }
