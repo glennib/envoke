@@ -301,6 +301,7 @@ the following additional filters:
 
 - `urlencode` -- percent-encodes special characters for use in URLs.
 - `shell_escape` -- escapes single quotes for shell safety (`'` -> `'\''`).
+- `dotenv_escape` -- encodes a value as a portable `.env` token with delimiters included (single-quoted when safe, else double-quoted with conservative escapes).
 
 ```yaml
 CONN_STRING:
@@ -526,7 +527,7 @@ Usable before *or* after the subcommand.
 |--------|-------------|
 | `<ENV>` | Target environment name (e.g. `local`, `prod`). Can also be set via the `ENVOKE_ENV` environment variable. |
 | `-o, --output <PATH>` | Write output to a file instead of stdout. |
-| `-f, --format <FORMAT>` | Select a built-in output preset: `shell` (default), `shell-export`, `dotenv`, `json`, `yaml`, `k8s-secret`, `github-actions`, `terraform-tfvars`. See [Output formats](#output-formats). Conflicts with `--template`. |
+| `-f, --format <FORMAT>` | Select a built-in output preset: `dotenv` (default), `shell-export`, `json`, `yaml`, `k8s-secret`, `github-actions`, `terraform-tfvars`. See [Output formats](#output-formats). Conflicts with `--template`. |
 | `--template <PATH>` | Use a custom output template file instead of a preset. See [Custom templates](#custom-templates). |
 
 ### `exec` options
@@ -580,8 +581,8 @@ variables:
    values.
 6. Render output using a built-in or custom Jinja2 template (see
    [Custom templates](#custom-templates)). The default template produces an
-   `@generated` header followed by sorted `VAR='value'` lines with shell-safe
-   escaping.
+   `@generated` header followed by sorted `VAR='value'` lines in the `.env`
+   dotenv format.
 
 Circular dependencies and references to undefined variables are detected before
 any resolution begins and reported as errors.
@@ -593,9 +594,8 @@ shapes most projects need; for anything else, use [`--template`](#custom-templat
 
 | Format | Output shape | Typical use |
 |--------|--------------|-------------|
-| `shell` *(default)* | `KEY='value'` (POSIX, single-quoted) | `eval "$(envoke render local)"`, `source`, CI shells |
-| `shell-export` | `export KEY='value'` | Same as `shell` with `export` prefix; use instead of piping to `eval "$(envoke render ...)"` when you want `export` lines for `source` |
-| `dotenv` | `KEY="value"` (JSON-style escapes) | `.env` files consumed by `python-dotenv`, `dotenvy`, `node dotenv` |
+| `dotenv` *(default)* | `KEY='value'` when safe, else `KEY="value"` with conservative escapes (`\\`, `\"`, `\$`, `\n`). `$` never expands at the consumer. | `.env` files consumed by `dotenvy` (mise, Rust), `godotenv` (Docker Compose), `python-dotenv`, `node dotenv` |
+| `shell-export` | `export KEY='value'` | Source into a POSIX shell for children to inherit: `source <(envoke render local --format shell-export)` |
 | `json` | Compact JSON object | Feeding structured tools; pipe through `jq .` for pretty output |
 | `yaml` | YAML mapping (block style) | Human-readable config files, `yq` pipelines |
 | `k8s-secret` | Kubernetes `Secret` manifest with `stringData:` | `envoke render prod --format k8s-secret \| kubectl apply -f -` |
@@ -641,6 +641,7 @@ are available (`upper`, `lower`, `replace`, `trim`, `default`, `join`, `length`,
 `first`, `last`, `sort`, `unique`, `tojson`, etc.), plus these additional filters:
 
 - `shell_escape` -- escapes single quotes for shell safety (`'` -> `'\''`).
+- `dotenv_escape` -- encodes a value as a portable `.env` token with delimiters included (single-quoted when safe, else double-quoted with conservative escapes `\\`, `\"`, `\$`, `\n`; `$` is never expanded at the consumer).
 - `urlencode` -- percent-encodes special characters.
 
 All filters are available in both variable templates (the `template` source type)

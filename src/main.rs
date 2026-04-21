@@ -25,9 +25,8 @@ mod resolve;
     version,
     after_help = "\
 Examples:
-  envoke render prod                          Print resolved vars as NAME='value' lines
+  envoke render prod                          Print resolved vars as a .env file (dotenv is the default)
   envoke r prod --format json                 Print resolved vars as a JSON object (r = render)
-  envoke render prod --format dotenv          Print resolved vars as a .env file
   envoke render prod --format shell-export    Print `export NAME='value'` lines
   envoke render prod --output .env            Write resolved vars to .env
   envoke exec prod -- psql                    Exec psql with resolved vars overlaid
@@ -110,11 +109,13 @@ struct RenderArgs {
 Select a built-in output format preset.
 
 Presets:
-  shell             POSIX shell lines: KEY='value' (the default
-                    when no format flag is given).
-  shell-export      POSIX shell lines with `export` prefix.
-  dotenv            .env syntax: KEY=\"value\" with JSON-style
-                    escapes.
+  dotenv            .env syntax (the default): KEY='value' when the
+                    value contains no apostrophe or newline, else
+                    KEY=\"value\" with conservative escapes. Safe to
+                    feed into dotenvy, godotenv, python-dotenv, and
+                    similar parsers; `$` never expands.
+  shell-export      POSIX shell lines with `export` prefix:
+                    `export KEY='value'`.
   json              Compact JSON object (pipe through `jq .` for
                     pretty output).
   yaml              YAML mapping in block style (KEY: \"value\").
@@ -397,7 +398,7 @@ fn cmd_render(
     } else if let Some(format) = args.format {
         render::render_format(&ctx, format)?
     } else {
-        render::render_format(&ctx, render::Format::Shell)?
+        render::render_format(&ctx, render::Format::Dotenv)?
     };
 
     if let Some(path) = &args.output {

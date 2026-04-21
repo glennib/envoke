@@ -7,7 +7,6 @@ use miette::IntoDiagnostic;
 
 use crate::resolve::Resolved;
 
-const SHELL_TEMPLATE: &str = include_str!("templates/shell.j2");
 const SHELL_EXPORT_TEMPLATE: &str = include_str!("templates/shell-export.j2");
 const DOTENV_TEMPLATE: &str = include_str!("templates/dotenv.j2");
 const JSON_TEMPLATE: &str = include_str!("templates/json.j2");
@@ -25,12 +24,10 @@ const TERRAFORM_TFVARS_TEMPLATE: &str = include_str!("templates/terraform-tfvars
 #[derive(Copy, Clone, Debug, clap::ValueEnum)]
 #[clap(rename_all = "kebab-case")]
 pub enum Format {
-    /// POSIX shell: `KEY='value'` (the default when no format flag is given).
-    Shell,
+    /// `.env` syntax (the default): `'value'` when safe, else `"value"` with conservative escapes.
+    Dotenv,
     /// POSIX shell with `export` prefix: `export KEY='value'`.
     ShellExport,
-    /// `.env` file syntax: `KEY="value"` with JSON-style escapes.
-    Dotenv,
     /// Compact JSON object (pipe through `jq .` for pretty output).
     Json,
     /// YAML mapping in block style: `KEY: "value"`.
@@ -46,9 +43,8 @@ pub enum Format {
 impl Format {
     fn template(self) -> &'static str {
         match self {
-            Self::Shell => SHELL_TEMPLATE,
-            Self::ShellExport => SHELL_EXPORT_TEMPLATE,
             Self::Dotenv => DOTENV_TEMPLATE,
+            Self::ShellExport => SHELL_EXPORT_TEMPLATE,
             Self::Json => JSON_TEMPLATE,
             Self::Yaml => YAML_TEMPLATE,
             Self::K8sSecret => K8S_SECRET_TEMPLATE,
@@ -110,6 +106,7 @@ fn render(ctx: &RenderContext, template: &str) -> miette::Result<String> {
 
     let mut env = minijinja::Environment::new();
     env.add_filter("shell_escape", shell_escape);
+    env.add_filter("dotenv_escape", dotenv_escape);
     env.add_template("output", template)
         .into_diagnostic()
         .context("failed to parse output template")?;
@@ -148,6 +145,43 @@ pub(crate) fn shell_escape(value: &str) -> String {
     value.replace('\'', "'\\''")
 }
 
+/// Encode a value as a portable `.env` token, delimiters included.
+///
+/// Returns the fully-quoted form — do not wrap the output in additional
+/// quotes when using this filter in templates.
+///
+/// Encoding rule:
+/// - If the value contains no `'` and no newline, emit `'value'` (single-
+///   quoted literal). Every byte passes through unchanged; `$` is never
+///   expanded inside single quotes by any dotenv parser.
+/// - Otherwise, emit `"value"` with the conservative escape set shared by
+///   `dotenvy`, `godotenv`, `python-dotenv`, and similar parsers: `\\`, `\"`,
+///   `\$`, and `\n` for newline. All other bytes (including literal tab and
+///   CR) pass through as-is. `\t` and `\r` escape *sequences* are deliberately
+///   not emitted because `dotenvy` rejects unknown escapes as parse errors.
+pub(crate) fn dotenv_escape(value: &str) -> String {
+    let needs_double_quote = value.contains('\'') || value.contains('\n');
+    let mut out = String::with_capacity(value.len() + 2);
+    if !needs_double_quote {
+        out.push('\'');
+        out.push_str(value);
+        out.push('\'');
+        return out;
+    }
+    out.push('"');
+    for c in value.chars() {
+        match c {
+            '\\' => out.push_str(r"\\"),
+            '"' => out.push_str(r#"\""#),
+            '$' => out.push_str(r"\$"),
+            '\n' => out.push_str(r"\n"),
+            other => out.push(other),
+        }
+    }
+    out.push('"');
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,22 +196,6 @@ mod tests {
             tags: vec![],
             overrides: vec![],
         }
-    }
-
-    #[test]
-    fn test_render_shell_basic() {
-        let ctx = RenderContext {
-            resolved: vec![Resolved {
-                name: "FOO".to_owned(),
-                value: "bar".to_owned(),
-                description: None,
-            }],
-            meta: test_meta(),
-        };
-        let output = render_format(&ctx, Format::Shell).unwrap();
-        assert!(output.contains("FOO='bar'"));
-        assert!(output.contains("@generated"));
-        assert!(!output.contains("export"));
     }
 
     #[test]
@@ -204,13 +222,13 @@ mod tests {
             }],
             meta: test_meta(),
         };
-        let output = render_format(&ctx, Format::Shell).unwrap();
+        let output = render_format(&ctx, Format::ShellExport).unwrap();
         assert!(output.contains("# Database host\n"));
-        assert!(output.contains("DB='localhost'"));
+        assert!(output.contains("export DB='localhost'"));
     }
 
     #[test]
-    fn test_render_shell_escape() {
+    fn test_render_shell_export_escape() {
         let ctx = RenderContext {
             resolved: vec![Resolved {
                 name: "VAL".to_owned(),
@@ -219,8 +237,8 @@ mod tests {
             }],
             meta: test_meta(),
         };
-        let output = render_format(&ctx, Format::Shell).unwrap();
-        assert!(output.contains("VAL='it'\\''s a test'"));
+        let output = render_format(&ctx, Format::ShellExport).unwrap();
+        assert!(output.contains("export VAL='it'\\''s a test'"));
     }
 
     #[test]
@@ -281,35 +299,6 @@ mod tests {
         let template = "{% for arg in meta.invocation_args %}[{{ arg }}]{% endfor %}";
         let output = render(&ctx, template).unwrap();
         assert_eq!(output, "[envoke][render][local]");
-    }
-
-    #[test]
-    fn test_shell_template_matches_snapshot() {
-        let ctx = RenderContext {
-            resolved: vec![
-                Resolved {
-                    name: "A_VAR".to_owned(),
-                    value: "hello".to_owned(),
-                    description: Some("A description".to_owned()),
-                },
-                Resolved {
-                    name: "B_VAR".to_owned(),
-                    value: "world".to_owned(),
-                    description: None,
-                },
-            ],
-            meta: test_meta(),
-        };
-        let output = render_format(&ctx, Format::Shell).unwrap();
-        let expected = "\
-# @generated by `envoke render local` at 2025-01-01T00:00:00+00:00
-# Do not edit manually. Modify envoke.yaml instead.
-
-# A description
-A_VAR='hello'
-B_VAR='world'
-";
-        assert_eq!(output, expected);
     }
 
     #[test]
@@ -391,12 +380,83 @@ export B_VAR='world'
     }
 
     #[test]
-    fn test_format_dotenv_escapes() {
+    fn test_format_dotenv_matches_snapshot() {
+        // Full-output assertion on the matrix. The fixture's `B` value carries
+        // an embedded `"` AND a newline — exercises the double-quoted fallback
+        // with escapes. `A` is plain and stays in the single-quoted form.
         let output = render_format(&format_fixture(), Format::Dotenv).unwrap();
-        assert!(output.contains("A=\"hello\""));
-        // tojson escapes the double-quote as \" and the newline as \n.
-        assert!(output.contains(r#"B="it\"s\nmultiline""#));
-        assert!(output.contains("# plain ascii"));
+        let expected = "\
+# @generated by `envoke render local` at 2025-01-01T00:00:00+00:00
+# Do not edit manually. Modify envoke.yaml instead.
+
+# plain ascii
+A='hello'
+B=\"it\\\"s\\nmultiline\"
+";
+        assert_eq!(output, expected);
+    }
+
+    /// The full matrix of (input, encoded) pairs that the dotenv encoding
+    /// must preserve. Shared between the filter-matrix test and the
+    /// dotenvy round-trip test so both stay in lockstep.
+    const DOTENV_MATRIX: &[(&str, &str)] = &[
+        ("hello", "'hello'"),
+        ("$HOME", "'$HOME'"),
+        (r#"say "hi""#, r#"'say "hi"'"#),
+        (r"C:\path", r"'C:\path'"),
+        ("café", "'café'"),
+        ("日本語", "'日本語'"),
+        ("hello ", "'hello '"),
+        ("", "''"),
+        ("a\tb", "'a\tb'"),
+        ("O'Brien", "\"O'Brien\""),
+        ("a\nb", "\"a\\nb\""),
+        ("$HOME O'Brien", "\"\\$HOME O'Brien\""),
+        ("line1\n$X", "\"line1\\n\\$X\""),
+        ("a\tb'c", "\"a\tb'c\""),
+        (r"back\slash", r"'back\slash'"),
+        ("back\\'slash", "\"back\\\\'slash\""),
+    ];
+
+    #[test]
+    fn test_dotenv_escape_filter_matrix() {
+        // Load-bearing properties pinned here:
+        // - single-quoted form passes every byte through unchanged,
+        //   including `$`, `"`, `\`, literal tab;
+        // - double-quoted fallback is chosen *only* for `'` or newline;
+        // - in the fallback, `$` is escaped (so parsers that expand it
+        //   don't corrupt the value), `\r` and `\t` escape sequences are
+        //   *not* emitted (dotenvy rejects unknown escapes — literal
+        //   tab/CR pass through instead).
+        for (input, expected) in DOTENV_MATRIX {
+            assert_eq!(
+                &dotenv_escape(input),
+                expected,
+                "dotenv_escape({input:?}) mismatch",
+            );
+        }
+    }
+
+    /// End-to-end pin: every encoding in the matrix must parse back to the
+    /// original value when read by `dotenvy`. This is the real test that the
+    /// chosen escape set (including literal tab/CR pass-through) doesn't
+    /// trip dotenvy's parser and that `$` never round-trips as an expanded
+    /// value.
+    #[test]
+    fn test_dotenv_round_trip_via_dotenvy() {
+        for (input, encoded) in DOTENV_MATRIX {
+            let line = format!("KEY={encoded}\n");
+            let mut iter = dotenvy::Iter::new(line.as_bytes());
+            let parsed = iter
+                .next()
+                .unwrap_or_else(|| panic!("no line parsed for {input:?}: {line:?}"))
+                .unwrap_or_else(|e| panic!("dotenvy rejected {line:?}: {e}"));
+            assert_eq!(parsed.0, "KEY");
+            assert_eq!(
+                parsed.1, *input,
+                "round-trip mismatch for {input:?} via encoding {encoded:?}",
+            );
+        }
     }
 
     #[test]
