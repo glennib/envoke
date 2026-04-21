@@ -10,7 +10,9 @@ express. Then hand the resolved variables to a command:
 ```sh
 envoke prod -- psql                      # exec with resolved vars overlaid
 envoke prod --output .env                # write a .env file
-envoke prod --template k8s-secret.j2     # render any shape you want
+envoke prod --format json                # render as JSON
+envoke prod --format k8s-secret          # render as a Kubernetes Secret manifest
+envoke prod --template custom.j2         # render any shape you want
 ```
 
 ## Why envoke?
@@ -167,9 +169,9 @@ replaced. Variables not declared in `envoke.yaml` pass through unchanged.
 directly. On other platforms, envoke spawns the child and forwards its exit
 code.
 
-**Flag conflicts.** `--output`, `--template`, and `--prepend-export` shape the
-printed output and therefore conflict with `-- <command>` — use one or the
-other.
+**Flag conflicts.** `--output`, `--template`, `--format`, and `--prepend-export`
+shape the printed output and therefore conflict with `-- <command>` — use one
+or the other.
 
 ## Shell integration with mise
 
@@ -488,14 +490,15 @@ envoke [OPTIONS] [ENVIRONMENT] [-- <COMMAND>...]
 | Option | Description |
 |--------|-------------|
 | `ENVIRONMENT` | Target environment name (e.g. `local`, `prod`). Required unless `--schema`, `--completions`, or `--list-*` flags are used. Can also be set via the `ENVOKE_ENV` environment variable. |
-| `-- <COMMAND>...` | Exec a command with resolved variables overlaid on the current environment. See [Running commands](#running-commands-with-resolved-variables). Conflicts with `--output`, `--template`, and `--prepend-export`. |
+| `-- <COMMAND>...` | Exec a command with resolved variables overlaid on the current environment. See [Running commands](#running-commands-with-resolved-variables). Conflicts with `--output`, `--template`, `--format`, and `--prepend-export`. |
 | `-c, --config <PATH>` | Path to config file. Default: `envoke.yaml`. |
 | `-o, --output <PATH>` | Write output to a file instead of stdout. Also works with `--schema`. |
 | `-t, --tag <TAG>` | Only include tagged variables with a matching tag. Repeatable. Untagged variables are always included. |
 | `--all-tags` | Include every tagged variable regardless of its tags. Conflicts with `--tag`. |
 | `-O, --override <NAME>` | Activate a named override for source selection. Repeatable. Per variable, at most one active override may be defined. |
-| `--prepend-export` | Prefix each line with `export`. Ignored when `--template` is used. |
-| `--template <PATH>` | Use a custom output template file instead of the built-in format. See [Custom templates](#custom-templates). |
+| `-f, --format <FORMAT>` | Select a built-in output preset: `shell` (default), `shell-export`, `dotenv`, `json`, `yaml`, `k8s-secret`, `github-actions`, `terraform-tfvars`. See [Output formats](#output-formats). Conflicts with `--template` and `--prepend-export`. |
+| `--prepend-export` | Prefix each line with `export`. Superseded by `--format shell-export` (the two conflict; use one or the other). Ignored when `--template` is used. |
+| `--template <PATH>` | Use a custom output template file instead of a preset. See [Custom templates](#custom-templates). |
 | `--schema` | Print the JSON Schema for `envoke.yaml` and exit. |
 | `--list-environments` | List all environment names found in the config and exit. |
 | `--list-overrides` | List all override names found in the config and exit. |
@@ -550,11 +553,35 @@ variables:
 Circular dependencies and references to undefined variables are detected before
 any resolution begins and reported as errors.
 
+## Output formats
+
+`--format <FORMAT>` selects a curated built-in preset. The defaults cover the
+shapes most projects need; for anything else, use [`--template`](#custom-templates).
+
+| Format | Output shape | Typical use |
+|--------|--------------|-------------|
+| `shell` *(default)* | `KEY='value'` (POSIX, single-quoted) | `eval "$(envoke local)"`, `source`, CI shells |
+| `shell-export` | `export KEY='value'` | Same as `shell` with `export` prefix; equivalent to `--prepend-export` |
+| `dotenv` | `KEY="value"` (JSON-style escapes) | `.env` files consumed by `python-dotenv`, `dotenvy`, `node dotenv` |
+| `json` | Compact JSON object | Feeding structured tools; pipe through `jq .` for pretty output |
+| `yaml` | YAML mapping (block style) | Human-readable config files, `yq` pipelines |
+| `k8s-secret` | Kubernetes `Secret` manifest with `stringData:` | `envoke prod --format k8s-secret \| kubectl apply -f -` |
+| `github-actions` | Heredoc blocks for `$GITHUB_ENV` | `- run: envoke prod --format github-actions >> "$GITHUB_ENV"` |
+| `terraform-tfvars` | HCL `KEY = "value"` | `envoke prod --format terraform-tfvars > prod.auto.tfvars` |
+
+**Notes.**
+- `--format json` output is also valid YAML 1.2, so use it when you want
+  compact structured output.
+- `k8s-secret` derives `metadata.name` from the environment (lowercased, `_`
+  replaced with `-`). For exotic env names, post-process or use `--template`.
+- Some `.env` parsers (e.g. `dotenvx`) expand `$VAR` inside double-quoted
+  values. A value like `pa$word` may not round-trip through those.
+
 ## Custom templates
 
-By default, envoke outputs shell `VAR='value'` lines with an `@generated`
-header. You can supply your own [minijinja](https://github.com/mitsuhiko/minijinja)
-(Jinja2-compatible) template via `--template`:
+If none of the presets fit, supply your own
+[minijinja](https://github.com/mitsuhiko/minijinja) (Jinja2-compatible)
+template via `--template`:
 
 ```sh
 envoke local --template my-template.j2

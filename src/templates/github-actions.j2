@@ -1,0 +1,6 @@
+{%- set delim = "ENVOKE_EOF_" ~ (meta.timestamp | replace("-", "") | replace(":", "") | replace("+", "") | replace(".", "")) -%}
+{% for name, var in variables | items -%}
+{{ name }}<<{{ delim }}
+{{ var.value }}
+{{ delim }}
+{% endfor -%}
