@@ -285,6 +285,7 @@ fn resolve_source(
         Source::Template(tmpl) => {
             let mut env = minijinja::Environment::new();
             env.add_filter("shell_escape", crate::render::shell_escape);
+            env.add_filter("dotenv_escape", crate::render::dotenv_escape);
             let mut ctx: BTreeMap<&str, minijinja::Value> = resolved
                 .iter()
                 .map(|(k, v)| (k.as_str(), minijinja::Value::from(v.as_str())))
