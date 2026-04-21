@@ -22,10 +22,13 @@ mod resolve;
     after_help = "\
 Examples:
   envoke prod                           Print resolved vars as NAME='value' lines
+  envoke prod --format json             Print resolved vars as a JSON object
+  envoke prod --format dotenv           Print resolved vars as a .env file
   envoke prod --prepend-export          Print `export NAME='value'` lines
   envoke prod --output .env             Write resolved vars to .env
   envoke prod -- psql                   Exec psql with resolved vars overlaid
-  envoke prod -- sh -c 'echo $DB_URL'   Exec an inline script"
+  envoke prod -- sh -c 'echo $DB_URL'   Exec an inline script",
+    verbatim_doc_comment
 )]
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
@@ -55,6 +58,42 @@ struct Cli {
     /// Per variable, at most one active override may be defined.
     #[arg(short = 'O', long = "override", verbatim_doc_comment)]
     overrides: Vec<String>,
+
+    /// Select a built-in output format preset.
+    #[arg(
+        short = 'f',
+        long,
+        value_enum,
+        conflicts_with_all = ["template", "prepend_export"],
+        long_help = "\
+Select a built-in output format preset.
+
+Presets:
+  shell             POSIX shell lines: KEY='value' (the default
+                    when no format flag is given).
+  shell-export      POSIX shell lines with `export` prefix.
+  dotenv            .env syntax: KEY=\"value\" with JSON-style
+                    escapes.
+  json              Compact JSON object (pipe through `jq .` for
+                    pretty output).
+  yaml              YAML mapping in block style (KEY: \"value\").
+  k8s-secret        Kubernetes Secret manifest with stringData.
+  github-actions    Heredoc format for >> \"$GITHUB_ENV\" in a
+                    GitHub Actions step.
+  terraform-tfvars  Terraform *.tfvars format: KEY = \"value\".
+
+Notes:
+  - `--format` conflicts with `--template` and `--prepend-export`.
+  - `--format shell-export` supersedes `--prepend-export`; use
+    one of them, not both (they conflict).
+  - `--format json` output is also valid YAML 1.2 if you prefer
+    the compact form.
+  - Some dotenv dialects (e.g. dotenvx) expand $VAR inside
+    double-quoted values, so a value like `pa$word` may not
+    round-trip through those parsers.
+  - For fully custom output, use `--template <file.j2>` instead."
+    )]
+    format: Option<render::Format>,
 
     /// Prefix each line with `export`. Ignored when --template is used.
     #[arg(long)]
@@ -164,6 +203,7 @@ envoke.yaml) also have access to a `meta` object:
         conflicts_with_all = [
             "output",
             "template",
+            "format",
             "prepend_export",
             "schema",
             "completions",
@@ -244,6 +284,7 @@ fn run() -> miette::Result<()> {
     let environment = cli.environment.expect("required by clap");
     let output = cli.output;
     let prepend_export = cli.prepend_export;
+    let format = cli.format;
     let template_path = cli.template;
     let quiet = cli.quiet;
     let command = cli.command;
@@ -295,10 +336,12 @@ fn run() -> miette::Result<()> {
 
     let content = if let Some(path) = &template_path {
         render::render_custom(&ctx, path)?
+    } else if let Some(format) = format {
+        render::render_format(&ctx, format)?
     } else if prepend_export {
-        render::render_default_export(&ctx)?
+        render::render_format(&ctx, render::Format::ShellExport)?
     } else {
-        render::render_default(&ctx)?
+        render::render_format(&ctx, render::Format::Shell)?
     };
 
     if let Some(path) = &output {
@@ -334,6 +377,73 @@ mod cli_tests {
     use clap::Parser;
 
     use super::Cli;
+    use super::render::Format;
+
+    #[test]
+    fn format_json_parses() {
+        let cli = Cli::try_parse_from(["envoke", "prod", "--format", "json"]).unwrap();
+        assert!(matches!(cli.format, Some(Format::Json)));
+    }
+
+    #[test]
+    fn format_k8s_secret_parses() {
+        // Canary for heck's kebab-case conversion over the `K` + digit
+        // boundary. If this fails, add `#[value(name = "k8s-secret")]` to
+        // the variant in render.rs.
+        let cli = Cli::try_parse_from(["envoke", "prod", "--format", "k8s-secret"]).unwrap();
+        assert!(matches!(cli.format, Some(Format::K8sSecret)));
+    }
+
+    #[test]
+    fn format_github_actions_parses() {
+        let cli = Cli::try_parse_from(["envoke", "prod", "--format", "github-actions"]).unwrap();
+        assert!(matches!(cli.format, Some(Format::GithubActions)));
+    }
+
+    #[test]
+    fn format_terraform_tfvars_parses() {
+        let cli = Cli::try_parse_from(["envoke", "prod", "--format", "terraform-tfvars"]).unwrap();
+        assert!(matches!(cli.format, Some(Format::TerraformTfvars)));
+    }
+
+    #[test]
+    fn format_conflicts_with_template() {
+        assert!(
+            Cli::try_parse_from(["envoke", "prod", "--format", "json", "--template", "t.j2",])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn format_conflicts_with_prepend_export() {
+        assert!(
+            Cli::try_parse_from(["envoke", "prod", "--format", "shell", "--prepend-export",])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn format_and_output_coexist() {
+        let cli = Cli::try_parse_from([
+            "envoke",
+            "prod",
+            "--format",
+            "json",
+            "--output",
+            "/tmp/x.json",
+        ])
+        .unwrap();
+        assert!(matches!(cli.format, Some(Format::Json)));
+        assert_eq!(
+            cli.output.as_deref().and_then(|p| p.to_str()),
+            Some("/tmp/x.json")
+        );
+    }
+
+    #[test]
+    fn command_conflicts_with_format() {
+        assert!(Cli::try_parse_from(["envoke", "prod", "--format", "json", "--", "psql"]).is_err());
+    }
 
     #[test]
     fn no_command_parses_as_normal_invocation() {
