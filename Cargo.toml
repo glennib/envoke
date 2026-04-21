@@ -28,6 +28,7 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 too_many_lines = "allow"
+doc_markdown = "allow"
 
 [profile.release]
 strip = true

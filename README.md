@@ -1,12 +1,43 @@
 # envoke
 
-Resolve variable values from a declarative YAML configuration.
+**Declarative environment variables — any source, any shape, any command.**
+Declare your environments, tags, and overrides in one YAML file. envoke
+composes values from literals, commands, shell scripts, and templates;
+resolves template dependencies topologically; and renders the result as shell
+exports, JSON, a Kubernetes ConfigMap, or anything else a Jinja template can
+express. Then hand the resolved variables to a command:
 
-envoke reads an `envoke.yaml` file, resolves variables from multiple sources
-(literals, commands, shell scripts, and [minijinja](https://github.com/mitsuhiko/minijinja)
-templates) in dependency order, and renders the results as shell-safe
-`VAR='value'` lines — ready to source as environment variables, write to `.env`
-files, or feed into custom output templates.
+```sh
+envoke prod -- psql                      # exec with resolved vars overlaid
+envoke prod --output .env                # write a .env file
+envoke prod --template k8s-secret.j2     # render any shape you want
+```
+
+## Why envoke?
+
+envoke is a **composer and renderer** for environment variables, not a secret
+store. The niche it fills is the intersection of *multi-source composition*
+(literals, commands, shell, templates), *per-environment / per-tag / per-override
+variation*, and *deterministic output to any shape*. Pair it with your secret
+store of choice — [fnox](https://github.com/jdx/fnox),
+[SOPS](https://github.com/getsops/sops),
+[1Password](https://developer.1password.com/docs/cli/reference/commands/read) CLI,
+or Vault — and let envoke handle the composition:
+
+```yaml
+# envoke.yaml
+DB_PASS:
+  envs:
+    prod:
+      sh: op read "op://prod/db/password"     # fetched via 1Password CLI
+    local:
+      literal: devpassword
+```
+
+Unlike `direnv` (shell hooks) or `.env` loaders, envoke produces structured
+output sorted topologically by template dependency. Unlike SOPS, envoke
+doesn't encrypt — it composes. Unlike Doppler/Infisical, envoke is
+local-first, offline-capable, and cargo-installable.
 
 ## Installation
 
@@ -95,7 +126,14 @@ DB_USER='app'
 > an `@generated` header with the invocation command and timestamp. Examples below
 > omit this header for brevity.
 
-Source them into your shell:
+Or hand them straight to a command — no shell dance required:
+
+```sh
+envoke local -- psql
+envoke prod -- kubectl apply -f manifest.yaml
+```
+
+Alternatively, source them into your shell:
 
 ```sh
 eval "$(envoke local --prepend-export)"
@@ -106,6 +144,32 @@ Or write them to a file:
 ```sh
 envoke local --output .env
 ```
+
+## Running commands with resolved variables
+
+Anything after `--` is executed as a subprocess with the resolved variables
+overlaid on envoke's own environment:
+
+```sh
+envoke prod -- psql
+envoke prod -- sh -c 'echo "$DATABASE_URL"'
+envoke local -- npm run dev
+```
+
+**Overlay semantics.** The child inherits envoke's process environment
+(`PATH`, `HOME`, `TERM`, `SSH_AUTH_SOCK`, …) and the resolved variables are
+layered on top — any inherited variable with the same name as a resolved one is
+replaced. Variables not declared in `envoke.yaml` pass through unchanged.
+
+**Process model.** On Unix, envoke replaces itself with the target process via
+`execvp` — the child keeps envoke's PID, TTY, and signal disposition, so
+`Ctrl-C` and `SIGTERM` behave exactly as if you had invoked the command
+directly. On other platforms, envoke spawns the child and forwards its exit
+code.
+
+**Flag conflicts.** `--output`, `--template`, and `--prepend-export` shape the
+printed output and therefore conflict with `-- <command>` — use one or the
+other.
 
 ## Shell integration with mise
 
@@ -275,10 +339,17 @@ LOG_LEVEL:
 
 ### Tags
 
-Variables can be tagged for conditional inclusion. Tagged variables are only
-included when at least one of their tags is passed via `--tag`. Untagged
-variables are always included. This is useful for gating expensive-to-resolve
-variables (e.g. vault lookups) or optional components behind explicit opt-in.
+Tags gate variables behind explicit opt-in. The typical use case: your config
+includes a `VAULT_SECRET` whose value is fetched by an expensive `sh: vault kv
+get …` command. You don't want that command to run every time someone runs
+`envoke local` during day-to-day development — only when they actually need the
+secret. Tag it with `vault`, and the variable is included only when `--tag
+vault` is passed.
+
+Untagged variables are always included. Tagged variables are only included
+when at least one of their tags is passed via `--tag`. This keeps expensive
+resolvers (vault lookups, cloud API calls, slow shell scripts) out of the hot
+path.
 
 ```yaml
 variables:
@@ -325,9 +396,23 @@ passed. Tagged variables require explicit opt-in.
 
 ### Overrides
 
-Overrides add a third dimension for varying values alongside environments and
-tags. A variable can declare named overrides, each with its own `default`/`envs`
-sources. Activate them with `--override`:
+Overrides let you point a single variable at a different source without
+duplicating an entire environment. Classic example: you have a `prod`
+environment, and occasionally you want `DATABASE_HOST` to point at a
+read-replica instead of the primary — but everything else (port, credentials,
+cache strategy) should stay identical. Creating a whole `prod-read-replica`
+environment duplicates ten other variables for the sake of one. Instead,
+declare a `read-replica` override on `DATABASE_HOST` and activate it with
+`--override read-replica`:
+
+```sh
+envoke prod -- psql                            # primary
+envoke prod --override read-replica -- psql    # same env, replica host
+```
+
+Overrides are the third dimension alongside environments and tags. A variable
+can declare named overrides, each with its own `default`/`envs` sources.
+Activate them with `--override`:
 
 ```yaml
 variables:
@@ -397,15 +482,17 @@ variable) produce a warning on stderr.
 ## CLI usage
 
 ```
-envoke [OPTIONS] [ENVIRONMENT]
+envoke [OPTIONS] [ENVIRONMENT] [-- <COMMAND>...]
 ```
 
 | Option | Description |
 |--------|-------------|
-| `ENVIRONMENT` | Target environment name (e.g. `local`, `prod`). Required unless `--schema` or `--list-*` flags are used. |
+| `ENVIRONMENT` | Target environment name (e.g. `local`, `prod`). Required unless `--schema`, `--completions`, or `--list-*` flags are used. Can also be set via the `ENVOKE_ENV` environment variable. |
+| `-- <COMMAND>...` | Exec a command with resolved variables overlaid on the current environment. See [Running commands](#running-commands-with-resolved-variables). Conflicts with `--output`, `--template`, and `--prepend-export`. |
 | `-c, --config <PATH>` | Path to config file. Default: `envoke.yaml`. |
 | `-o, --output <PATH>` | Write output to a file instead of stdout. Also works with `--schema`. |
 | `-t, --tag <TAG>` | Only include tagged variables with a matching tag. Repeatable. Untagged variables are always included. |
+| `--all-tags` | Include every tagged variable regardless of its tags. Conflicts with `--tag`. |
 | `-O, --override <NAME>` | Activate a named override for source selection. Repeatable. Per variable, at most one active override may be defined. |
 | `--prepend-export` | Prefix each line with `export`. Ignored when `--template` is used. |
 | `--template <PATH>` | Use a custom output template file instead of the built-in format. See [Custom templates](#custom-templates). |
@@ -413,8 +500,11 @@ envoke [OPTIONS] [ENVIRONMENT]
 | `--list-environments` | List all environment names found in the config and exit. |
 | `--list-overrides` | List all override names found in the config and exit. |
 | `--list-tags` | List all tag names found in the config and exit. |
+| `--list-everything` | List all environments, overrides, and tags (each line prefixed with its type) and exit. |
+| `--no-parallel` | Resolve `cmd:` and `sh:` sources serially instead of in parallel. |
 | `--completions <SHELL>` | Generate shell completions for the given shell (`bash`, `zsh`, `fish`, `elvish`, `powershell`) and exit. |
 | `-q, --quiet` | Suppress informational messages on stderr. |
+| `ENVOKE_ENV` *(env)* | Fallback source for the target environment when no positional `ENVIRONMENT` is given. |
 
 ### JSON Schema
 
