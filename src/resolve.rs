@@ -308,7 +308,7 @@ fn resolve_source(
             debug!(variable, "resolved from template");
             Ok(value)
         }
-        Source::Skip(_) => unreachable!("skip sources are filtered before resolution"),
+        Source::Skip => unreachable!("skip sources are filtered before resolution"),
     }
 }
 
@@ -395,7 +395,7 @@ pub fn resolve_all(
                             reason: msg.to_owned(),
                         },
                     });
-                } else if matches!(source, Source::Skip(_)) {
+                } else if matches!(source, Source::Skip) {
                     debug!(variable = name.as_str(), "skipped");
                 } else {
                     sources.insert(name.clone(), source.clone());
@@ -436,7 +436,7 @@ pub fn resolve_all(
             Source::Literal(_) => literals.push(name),
             Source::Cmd(_) | Source::Sh(_) => external.push(name),
             Source::Template(_) => templates.push(name),
-            Source::Skip(_) => unreachable!("skip sources are filtered before resolution"),
+            Source::Skip => unreachable!("skip sources are filtered before resolution"),
         }
     }
 
@@ -583,7 +583,7 @@ mod tests {
     }
 
     fn skip() -> Source {
-        Source::Skip(true)
+        Source::Skip
     }
 
     fn var(envs: BTreeMap<String, Source>) -> crate::config::Variable {

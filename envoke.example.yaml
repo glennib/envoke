@@ -86,8 +86,7 @@ variables:
     default:
       literal: "1"
     envs:
-      prod:
-        skip: true
+      prod: skip
 
   # --- tags: conditional inclusion ---
   VAULT_TOKEN:

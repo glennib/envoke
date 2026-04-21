@@ -85,17 +85,9 @@
           "type": "object"
         },
         {
-          "additionalProperties": false,
-          "description": "When `true`, the variable is silently omitted from output. Must be\n`true` when specified; `skip: false` is rejected by validation.",
-          "properties": {
-            "skip": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "skip"
-          ],
-          "type": "object"
+          "const": "skip",
+          "description": "Silently omit this variable from output. YAML surface: the bare string\n`skip` (not `skip: true`).",
+          "type": "string"
         }
       ]
     },

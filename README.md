@@ -315,8 +315,7 @@ variable in certain environments while including it in others.
 
 ```yaml
 DEBUG_TOKEN:
-  default:
-    skip: true
+  default: skip
   envs:
     local:
       literal: debug-token-value

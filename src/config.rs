@@ -70,9 +70,9 @@ pub enum Source {
     /// A minijinja (Jinja2) template string. Reference other variables with
     /// `{{ VAR_NAME }}` or metadata like `{{ meta.environment }}`.
     Template(String),
-    /// When `true`, the variable is silently omitted from output. Must be
-    /// `true` when specified; `skip: false` is rejected by validation.
-    Skip(bool),
+    /// Silently omit this variable from output. YAML surface: the bare string
+    /// `skip` (not `skip: true`).
+    Skip,
 }
 
 impl Source {
@@ -80,7 +80,6 @@ impl Source {
     pub fn validate(&self) -> Result<(), &'static str> {
         match self {
             Self::Cmd(args) if args.is_empty() => Err("`cmd` must have at least one element"),
-            Self::Skip(false) => Err("`skip` must be `true` when specified"),
             _ => Ok(()),
         }
     }
