@@ -186,10 +186,10 @@ on shell entry — no manual `eval` or sourcing needed.
 ```toml
 # mise.toml
 [tools]
-"github:glennib/envoke" = "1.9.0"
+"github:glennib/envoke" = "2.0.0"
 
 [plugins]
-envoke = "https://github.com/glennib/envoke-env#v1.0.0"
+envoke = "https://github.com/glennib/envoke-env#v2.0.0"
 
 [env]
 _.envoke = { fallback_environment = "local", tools = true }
