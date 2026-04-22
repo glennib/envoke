@@ -5,5 +5,5 @@
 {% if var.description -%}
 # {{ var.description }}
 {% endif -%}
-{{ name }}={{ var.value | tojson }}
+{{ name }}={{ var.value | dotenv_escape }}
 {% endfor -%}
