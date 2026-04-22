@@ -36,10 +36,8 @@ DB_PASS:
       literal: devpassword
 ```
 
-Unlike `direnv` (shell hooks) or `.env` loaders, envoke produces structured
-output sorted topologically by template dependency. Unlike SOPS, envoke
-doesn't encrypt — it composes. Unlike Doppler/Infisical, envoke is
-local-first, offline-capable, and cargo-installable.
+envoke doesn't hook into the shell like `direnv` or other `.env` loaders, but produces structured output and renders flexibly.
+It also doesn't encrypt or cache, but is composable with tools that do, via the `sh` and `cmd` sources.
 
 ## Installation
 
