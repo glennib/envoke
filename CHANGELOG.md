@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0](https://github.com/glennib/envoke/compare/v1.12.0...v2.0.0) - 2026-04-22
+
+### Migration from v1
+
+v2 has four breaking changes. Each section lists the v1 invocation on the left
+and its v2 equivalent on the right.
+
+#### CLI split into subcommands
+
+The flat `envoke [FLAGS] [ENV] [-- CMD...]` grammar is gone. Each mode is now
+its own subcommand.
+
+| v1 | v2 |
+| --- | --- |
+| `envoke prod` | `envoke render prod` (alias `envoke r prod`) |
+| `envoke prod -- ./serve` | `envoke exec prod -- ./serve` (alias `envoke x prod -- ./serve`) |
+| `envoke --schema` | `envoke schema` |
+| `envoke --completions bash` | `envoke completions bash` |
+| `envoke --list-environments` | `envoke meta environments` |
+| `envoke --list-tags` | `envoke meta tags` |
+| `envoke --list-overrides` | `envoke meta overrides` |
+
+`-o/--output`, `-f/--format`, and `--template` are now `render`-only and error
+under other subcommands. `-c/--config`, `-q/--quiet`, `--no-parallel`,
+`-t/--tag`, `--all-tags`, and `-O/--override` remain global and may appear
+before or after the subcommand. When repeatable flags (`-t/--tag`,
+`-O/--override`) are split across the subcommand boundary, they follow
+last-write-wins — pick one side.
+
+#### `--prepend-export` removed
+
+Superseded by `--format shell-export` in v1.12.0 and now retired.
+
+| v1 | v2 |
+| --- | --- |
+| `envoke prod --prepend-export` | `envoke render prod --format shell-export` |
+
+#### `--format shell` removed; default format is now `dotenv`
+
+| v1 | v2 |
+| --- | --- |
+| `envoke prod` (default `shell`) | `envoke render prod` (default `dotenv`) |
+| `envoke prod --format shell` | `envoke render prod --format shell-export` |
+
+The `dotenv` encoding was reworked for portability: literal strings round-trip
+unchanged across `dotenvy` (mise, Rust), `godotenv` (Docker Compose),
+`python-dotenv`, and `node dotenv`, and `$` never expands at the consumer.
+A new `dotenv_escape` minijinja filter is exposed in both output templates and
+variable-source templates.
+
+#### `skip` source is now a bare string
+
+```yaml
+# v1
+envs:
+  prod:
+    skip: true
+
+# v2
+envs:
+  prod: skip
+```
+
+`skip: false` was never meaningful (it was rejected at runtime); the object
+form is simply gone.
+
+### Fixed
+
+- *(render)* [**breaking**] drop shell format, portable dotenv encoding
+
+### Other
+
+- *(resolve)* bound external source fan-out with a worker pool
+- sync internal doc comments and test fixtures with v2 CLI
+- *(cli)* [**breaking**] drop --prepend-export
+- *(cli)* [**breaking**] split into subcommands (render, exec, meta, schema, completions)
+- *(config)* [**breaking**] Source::Skip becomes a unit variant
+
 ## [1.12.0](https://github.com/glennib/envoke/compare/v1.11.0...v1.12.0) - 2026-04-21
 
 ### Added
