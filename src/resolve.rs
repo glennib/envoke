@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::process::Command;
+use std::sync::Mutex;
+use std::sync::mpsc;
 
 use tracing::debug;
 use tracing::warn;
@@ -11,6 +13,14 @@ use crate::config::Config;
 use crate::config::Source;
 use crate::error::ResolveError;
 use crate::error::ResolveErrorKind;
+
+/// Upper bound on concurrent workers resolving `cmd:` / `sh:` sources.
+///
+/// External sources are blocking subprocess spawns, so CPU count is the wrong
+/// dimension to scale by. A small constant caps OS-thread and subprocess
+/// pressure on large configs while still giving real parallelism on typical
+/// hardware.
+const MAX_EXTERNAL_JOBS: usize = 8;
 
 /// A successfully resolved variable with its value and optional description.
 #[derive(Debug, serde::Serialize)]
@@ -324,6 +334,18 @@ fn resolve_source(
 /// Active overrides select alternative sources per variable. At most one
 /// active override may be defined on any given variable; conflicts are
 /// reported as errors.
+///
+/// # Concurrency
+///
+/// Literals and templates always run on the main thread in topological order.
+/// When `parallel` is true, `cmd:` / `sh:` sources are resolved by a bounded
+/// worker pool of at most [`MAX_EXTERNAL_JOBS`] threads — so a config with N
+/// external sources never spawns more than `min(N, MAX_EXTERNAL_JOBS)`
+/// concurrent subprocesses. Workers pull jobs from a shared queue. When
+/// `parallel` is false, external sources are resolved sequentially in
+/// topological order. Errors from the parallel phase are batched (all workers
+/// run to completion before any error is returned); the sequential phase
+/// fails fast on the first error.
 pub fn resolve_all(
     config: &Config,
     environment: &str,
@@ -459,16 +481,28 @@ pub fn resolve_all(
         resolved_values.insert((*name).clone(), value);
     }
 
-    // Resolve cmd/sh sources — in parallel via scoped threads, or
+    // Resolve cmd/sh sources — in parallel via a bounded worker pool, or
     // sequentially if parallel resolution is disabled.
-    if parallel {
+    if parallel && !external.is_empty() {
+        let pool_size = external.len().min(MAX_EXTERNAL_JOBS);
         let resolved_ref = &resolved_values;
-        let parallel_results: Vec<_> = std::thread::scope(|s| {
-            let handles: Vec<_> = external
-                .iter()
-                .map(|name| {
-                    let source = &sources[name.as_str()];
-                    s.spawn(move || {
+        let sources_ref = &sources;
+
+        let (job_tx, job_rx) = mpsc::channel::<&String>();
+        let (res_tx, res_rx) = mpsc::channel::<(String, Result<String, ResolveError>)>();
+        let job_rx = Mutex::new(job_rx);
+
+        let results: Vec<(String, Result<String, ResolveError>)> = std::thread::scope(|s| {
+            for _ in 0..pool_size {
+                let job_rx = &job_rx;
+                let res_tx = res_tx.clone();
+                s.spawn(move || {
+                    loop {
+                        // Short critical section: pull one job, release
+                        // the lock, then do the (slow) subprocess work.
+                        let next = job_rx.lock().expect("job queue mutex poisoned").recv();
+                        let Ok(name) = next else { return };
+                        let source = &sources_ref[name.as_str()];
                         let value = resolve_source(
                             source,
                             name,
@@ -478,25 +512,27 @@ pub fn resolve_all(
                             timestamp,
                             resolved_ref,
                         );
-                        (*name, value)
-                    })
-                })
-                .collect();
-            handles
-                .into_iter()
-                .map(|h| h.join().expect("thread panicked during source resolution"))
-                .collect()
+                        if res_tx.send((name.clone(), value)).is_err() {
+                            return;
+                        }
+                    }
+                });
+            }
+            for name in external.iter().copied() {
+                job_tx.send(name).expect("workers still alive");
+            }
+            drop(job_tx);
+            drop(res_tx);
+            res_rx.into_iter().collect()
         });
 
         let mut errors: Vec<ResolveError> = Vec::new();
-        for (name, result) in parallel_results {
+        for (name, result) in results {
             match result {
                 Ok(value) => {
-                    resolved_values.insert(name.clone(), value);
+                    resolved_values.insert(name, value);
                 }
-                Err(e) => {
-                    errors.push(e);
-                }
+                Err(e) => errors.push(e),
             }
         }
         if !errors.is_empty() {
@@ -1644,5 +1680,65 @@ mod tests {
         };
         let resolved = resolve(&config, "local", &[], &[]).unwrap();
         assert_eq!(resolved[0].value, TS);
+    }
+
+    fn cmd_saturation_config(count: usize) -> (Config, Vec<(String, String)>) {
+        assert!(count > MAX_EXTERNAL_JOBS, "fixture must exceed pool size");
+        let mut variables = BTreeMap::new();
+        let mut expected = Vec::with_capacity(count);
+        for i in 0..count {
+            let name = format!("VAR_{i:02}");
+            let value = format!("value-{i}");
+            variables.insert(
+                name.clone(),
+                var(BTreeMap::from([(
+                    "local".to_owned(),
+                    cmd(vec!["echo", &value]),
+                )])),
+            );
+            expected.push((name, value));
+        }
+        (Config { variables }, expected)
+    }
+
+    #[test]
+    fn test_parallel_queue_saturation() {
+        let (config, expected) = cmd_saturation_config(MAX_EXTERNAL_JOBS * 3);
+        let resolved = resolve(&config, "local", &[], &[]).unwrap();
+        let got: Vec<(String, String)> = resolved.into_iter().map(|r| (r.name, r.value)).collect();
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn test_parallel_mixed_success_and_error() {
+        let mut variables = BTreeMap::new();
+        for name in ["OK_A", "OK_B", "OK_C"] {
+            variables.insert(
+                name.to_owned(),
+                var(BTreeMap::from([(
+                    "local".to_owned(),
+                    cmd(vec!["echo", "ok"]),
+                )])),
+            );
+        }
+        for name in ["FAIL_X", "FAIL_Y"] {
+            variables.insert(
+                name.to_owned(),
+                var(BTreeMap::from([("local".to_owned(), cmd(vec!["false"]))])),
+            );
+        }
+        let config = Config { variables };
+        let errors = resolve(&config, "local", &[], &[]).unwrap_err();
+        let mut failing: Vec<String> = errors.into_iter().map(|e| e.variable).collect();
+        failing.sort();
+        assert_eq!(failing, vec!["FAIL_X".to_owned(), "FAIL_Y".to_owned()]);
+    }
+
+    #[test]
+    fn test_sequential_resolves_same_values_as_parallel() {
+        let (config, expected) = cmd_saturation_config(MAX_EXTERNAL_JOBS * 3);
+        let resolved = resolve_all(&config, "local", &[], &[], TS, false).unwrap();
+        let got: Vec<(String, String)> = resolved.into_iter().map(|r| (r.name, r.value)).collect();
+        assert_eq!(got, expected);
     }
 }
