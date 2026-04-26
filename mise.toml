@@ -34,12 +34,12 @@ description = "Run tests"
 run = "cargo nextest run --all-targets"
 
 [tasks.build]
-description = "Build release binary"
-run = "cargo build --release"
+description = "Build debug binary"
+run = "cargo build"
 
 [tasks.schema]
 description = "Output JSON Schema to stdout"
-run = "cargo run --release -- schema | jq --sort-keys"
+run = "cargo run schema | jq --sort-keys"
 
 [tasks."schema:write"]
 description = "Write JSON Schema to envoke.schema.json"
