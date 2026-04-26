@@ -71,12 +71,12 @@ struct Cli {
 #[derive(Subcommand)]
 enum Cmd {
     /// Resolve variables and print or write them.
-    #[command(alias = "r")]
+    #[command(visible_alias = "r")]
     Render(RenderArgs),
 
     /// Resolve variables and exec a command with them overlaid on the current
     /// process environment.
-    #[command(alias = "x")]
+    #[command(visible_alias = "x")]
     Exec(ExecArgs),
 
     /// Enumerate names of a config dimension (environments, tags, overrides).
