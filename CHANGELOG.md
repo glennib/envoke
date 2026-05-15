@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.3](https://github.com/glennib/envoke/compare/v2.0.2...v2.0.3) - 2026-05-15
+
+### Other
+
+- update Cargo.lock dependencies
+
 ## [2.0.2](https://github.com/glennib/envoke/compare/v2.0.1...v2.0.2) - 2026-04-26
 
 ### Fixed
