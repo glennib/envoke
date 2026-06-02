@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.3](https://github.com/glennib/envoke/compare/v2.0.2...v2.0.3) - 2026-06-02
+
+### Fixed
+
+- *(deps)* update rust crate serde_yml to 0.0.13 ([#60](https://github.com/glennib/envoke/pull/60))
+
+### Other
+
+- *(deps)* update rust crate minijinja to v2.20.0 ([#58](https://github.com/glennib/envoke/pull/58))
+- *(deps)* update rust crate serde_json to v1.0.150 ([#59](https://github.com/glennib/envoke/pull/59))
+- make renovate automerge
+- pin mise dependencies
+
 ## [2.0.2](https://github.com/glennib/envoke/compare/v2.0.1...v2.0.2) - 2026-04-26
 
 ### Fixed
