@@ -2,7 +2,7 @@
 "cargo:cargo-dist" = "0.32.0"
 "cargo:cargo-nextest" = "0.9.137"
 "cargo:release-plz" = "0.3.158"
-cargo-binstall = "1.19.1"
+cargo-binstall = "1.20.0"
 jq = "1.8.1"
 
 [tasks.install]
