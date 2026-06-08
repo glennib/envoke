@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.4](https://github.com/glennib/envoke/compare/v2.0.3...v2.0.4) - 2026-06-08
+
+### Other
+
+- *(deps)* update dependency cargo-binstall to v1.20.0 ([#65](https://github.com/glennib/envoke/pull/65))
+
 ## [2.0.3](https://github.com/glennib/envoke/compare/v2.0.2...v2.0.3) - 2026-06-02
 
 ### Fixed
