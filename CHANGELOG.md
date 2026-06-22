@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.4](https://github.com/glennib/envoke/compare/v2.0.3...v2.0.4) - 2026-06-22
+
+### Other
+
+- *(deps)* lock file maintenance ([#71](https://github.com/glennib/envoke/pull/71))
+- *(deps)* update dependency cargo-binstall to v1.20.1 ([#70](https://github.com/glennib/envoke/pull/70))
+- *(deps)* update dependency jq to v1.8.2 ([#69](https://github.com/glennib/envoke/pull/69))
+- *(deps)* update rust crate minijinja to v2.21.0 ([#67](https://github.com/glennib/envoke/pull/67))
+- *(deps)* lock file maintenance ([#66](https://github.com/glennib/envoke/pull/66))
+- *(deps)* update dependency cargo-binstall to v1.20.0 ([#65](https://github.com/glennib/envoke/pull/65))
+
 ## [2.0.3](https://github.com/glennib/envoke/compare/v2.0.2...v2.0.3) - 2026-06-02
 
 ### Fixed
