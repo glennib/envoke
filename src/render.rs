@@ -108,6 +108,7 @@ fn render(ctx: &RenderContext, template: &str) -> miette::Result<String> {
     let mut env = minijinja::Environment::new();
     env.add_filter("shell_escape", shell_escape);
     env.add_filter("dotenv_escape", dotenv_escape);
+    env.add_filter("wrap", wrap);
     env.add_template("output", template)
         .into_diagnostic()
         .context("failed to parse output template")?;
@@ -181,6 +182,14 @@ pub(crate) fn dotenv_escape(value: &str) -> String {
     }
     out.push('"');
     out
+}
+
+/// Wraps a string into lines of maximum `width` columns.
+pub(crate) fn wrap(s: &str, width: usize) -> Vec<String> {
+    textwrap::wrap(s, width)
+        .into_iter()
+        .map(|c| c.to_string())
+        .collect()
 }
 
 #[cfg(test)]
