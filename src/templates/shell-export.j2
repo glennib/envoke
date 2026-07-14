@@ -3,7 +3,9 @@
 
 {% for name, var in variables | items -%}
 {% if var.description -%}
-# {{ var.description }}
+{% for line in var.description | wrap(80) -%}
+# {{ line }}
+{% endfor -%}
 {% endif -%}
 export {{ name }}='{{ var.value | shell_escape }}'
 {% endfor -%}
