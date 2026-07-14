@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0](https://github.com/glennib/envoke/compare/v2.0.4...v2.1.0) - 2026-07-14
+
+### Added
+
+- make dotenv and shell-export formats wrap comments that come from long descriptions
+- add wrap filter
+
+### Other
+
+- *(deps)* update actions/checkout action to v7
+- *(deps)* update actions/cache action to v6
+- use cargo insta
+- add dotenv_escape filter to cli help docs
+- fmt
+- *(deps)* update dependency cargo-binstall to v1.21.0 ([#79](https://github.com/glennib/envoke/pull/79))
+
 ## [2.0.4](https://github.com/glennib/envoke/compare/v2.0.3...v2.0.4) - 2026-06-22
 
 ### Other
