@@ -355,6 +355,11 @@ mod tests {
                     value: "it\"s\nmultiline".to_owned(),
                     description: None,
                 },
+                Resolved {
+                    name: "C".to_owned(),
+                    value: "long description".to_owned(),
+                    description: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin eget elementum libero, ut iaculis odio. Nulla vitae ante volutpat, tincidunt neque ut, sagittis arcu. Aenean sed arcu pretium purus sagittis.".to_owned()),
+                },
             ],
             meta: test_meta(),
         }
@@ -401,6 +406,10 @@ mod tests {
         # plain ascii
         A='hello'
         B="it\"s\nmultiline"
+        # Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin eget elementum
+        # libero, ut iaculis odio. Nulla vitae ante volutpat, tincidunt neque ut, sagittis
+        # arcu. Aenean sed arcu pretium purus sagittis.
+        C='long description'
         "#);
     }
 
@@ -513,5 +522,21 @@ mod tests {
         assert!(output.contains("B<<ENVOKE_EOF_"));
         // The multiline value is preserved verbatim inside the heredoc.
         assert!(output.contains("it\"s\nmultiline"));
+    }
+
+    #[test]
+    fn test_wrap() {
+        let context = RenderContext {
+            resolved: vec![Resolved {
+                name: "A".to_string(),
+                value: "a".to_string(),
+                description: Some("One two three four".to_string()),
+            }],
+            meta: test_meta(),
+        };
+        let template =
+            "{% for line in variables.A.description | wrap(10) %}# {{ line }}\n{% endfor %}";
+        let output = render(&context, template).unwrap();
+        assert_eq!(output, "# One two\n# three four\n");
     }
 }
