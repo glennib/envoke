@@ -24,7 +24,8 @@ const TERRAFORM_TFVARS_TEMPLATE: &str = include_str!("templates/terraform-tfvars
 #[derive(Copy, Clone, Debug, clap::ValueEnum)]
 #[clap(rename_all = "kebab-case")]
 pub enum Format {
-    /// `.env` syntax (the default): `'value'` when safe, else `"value"` with conservative escapes.
+    /// `.env` syntax (the default): `'value'` when safe, else `"value"` with
+    /// conservative escapes.
     Dotenv,
     /// POSIX shell with `export` prefix: `export KEY='value'`.
     ShellExport,
@@ -156,9 +157,9 @@ pub(crate) fn shell_escape(value: &str) -> String {
 ///   expanded inside single quotes by any dotenv parser.
 /// - Otherwise, emit `"value"` with the conservative escape set shared by
 ///   `dotenvy`, `godotenv`, `python-dotenv`, and similar parsers: `\\`, `\"`,
-///   `\$`, and `\n` for newline. All other bytes (including literal tab and
-///   CR) pass through as-is. `\t` and `\r` escape *sequences* are deliberately
-///   not emitted because `dotenvy` rejects unknown escapes as parse errors.
+///   `\$`, and `\n` for newline. All other bytes (including literal tab and CR)
+///   pass through as-is. `\t` and `\r` escape *sequences* are deliberately not
+///   emitted because `dotenvy` rejects unknown escapes as parse errors.
 pub(crate) fn dotenv_escape(value: &str) -> String {
     let needs_double_quote = value.contains('\'') || value.contains('\n');
     let mut out = String::with_capacity(value.len() + 2);
@@ -421,13 +422,12 @@ B=\"it\\\"s\\nmultiline\"
     #[test]
     fn test_dotenv_escape_filter_matrix() {
         // Load-bearing properties pinned here:
-        // - single-quoted form passes every byte through unchanged,
-        //   including `$`, `"`, `\`, literal tab;
+        // - single-quoted form passes every byte through unchanged, including `$`, `"`,
+        //   `\`, literal tab;
         // - double-quoted fallback is chosen *only* for `'` or newline;
-        // - in the fallback, `$` is escaped (so parsers that expand it
-        //   don't corrupt the value), `\r` and `\t` escape sequences are
-        //   *not* emitted (dotenvy rejects unknown escapes — literal
-        //   tab/CR pass through instead).
+        // - in the fallback, `$` is escaped (so parsers that expand it don't corrupt
+        //   the value), `\r` and `\t` escape sequences are *not* emitted (dotenvy
+        //   rejects unknown escapes — literal tab/CR pass through instead).
         for (input, expected) in DOTENV_MATRIX {
             assert_eq!(
                 &dotenv_escape(input),
