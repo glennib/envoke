@@ -4,6 +4,7 @@
 "cargo:release-plz" = "0.3.158"
 cargo-binstall = "1.21.0"
 jq = "1.8.2"
+cargo-insta = "latest"
 
 [tasks.install]
 description = "Install the envoke binary"
