@@ -173,6 +173,7 @@ Available filters:
     shell_escape  Escapes single quotes for shell safety
     dotenv_escape Encode a value as a portable .env token
     urlencode     Percent-encodes special characters
+    wrap(n)       Wraps into lines of maximum n columns
 
 All filters are available in both variable templates (the `template`
 source type) and custom output templates.
