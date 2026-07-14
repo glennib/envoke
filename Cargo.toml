@@ -27,6 +27,7 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
 [dev-dependencies]
 dotenvy = "0.15"
+insta = "1.48.0"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
