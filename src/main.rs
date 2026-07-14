@@ -171,6 +171,7 @@ Available filters:
 
   Additional filters:
     shell_escape  Escapes single quotes for shell safety
+    dotenv_escape Encode a value as a portable .env token
     urlencode     Percent-encodes special characters
 
 All filters are available in both variable templates (the `template`
