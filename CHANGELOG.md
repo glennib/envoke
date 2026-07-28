@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1](https://github.com/glennib/envoke/compare/v2.1.0...v2.1.1) - 2026-07-27
+
+### Other
+
+- *(deps)* update rust crate schemars to v1.2.2 ([#90](https://github.com/glennib/envoke/pull/90))
+- *(deps)* update rust crate clap_complete to v4.6.8 ([#89](https://github.com/glennib/envoke/pull/89))
+- *(deps)* lock file maintenance ([#88](https://github.com/glennib/envoke/pull/88))
+- *(deps)* update dependency cargo-binstall to v1.21.1 ([#87](https://github.com/glennib/envoke/pull/87))
+
 ## [2.1.0](https://github.com/glennib/envoke/compare/v2.0.4...v2.1.0) - 2026-07-14
 
 ### Added
