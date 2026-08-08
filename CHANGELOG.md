@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2](https://github.com/glennib/envoke/compare/v2.1.1...v2.1.2) - 2026-08-08
+
+### Other
+
+- *(deps)* update rust crate minijinja to v2.23.0 ([#99](https://github.com/glennib/envoke/pull/99))
+- *(deps)* update rust crate clap_complete to v4.6.9 ([#98](https://github.com/glennib/envoke/pull/98))
+- *(deps)* update rust crate thiserror to v2.0.20 ([#100](https://github.com/glennib/envoke/pull/100))
+- *(deps)* update rust crate clap to v4.6.6 ([#97](https://github.com/glennib/envoke/pull/97))
+- *(deps)* update dependency cargo:cargo-nextest to v0.9.143 ([#96](https://github.com/glennib/envoke/pull/96))
+- *(deps)* update rust crate minijinja to v2.22.0 ([#95](https://github.com/glennib/envoke/pull/95))
+- *(deps)* update rust crate clap to v4.6.5 ([#94](https://github.com/glennib/envoke/pull/94))
+- *(deps)* update dependency cargo:release-plz to v0.3.160 ([#92](https://github.com/glennib/envoke/pull/92))
+- *(deps)* update dependency cargo:cargo-nextest to v0.9.140 ([#91](https://github.com/glennib/envoke/pull/91))
+
 ## [2.1.1](https://github.com/glennib/envoke/compare/v2.1.0...v2.1.1) - 2026-07-27
 
 ### Other
