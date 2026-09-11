@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.4](https://github.com/glennib/envoke/compare/v2.1.3...v2.1.4) - 2026-09-11
+
+### Other
+
+- *(deps)* update dependency cargo:cargo-nextest to v0.9.144 ([#116](https://github.com/glennib/envoke/pull/116))
+- *(deps)* update dependency cargo:release-plz to v0.3.165 ([#117](https://github.com/glennib/envoke/pull/117))
+- *(deps)* update rust crate textwrap to v0.16.3 ([#115](https://github.com/glennib/envoke/pull/115))
+- *(deps)* update dependency cargo:release-plz to v0.3.164 ([#114](https://github.com/glennib/envoke/pull/114))
+- *(deps)* update dependency cargo:release-plz to v0.3.163 ([#113](https://github.com/glennib/envoke/pull/113))
+- *(deps)* lock file maintenance ([#112](https://github.com/glennib/envoke/pull/112))
+- *(deps)* update dependency cargo-binstall to v1.23.0 ([#111](https://github.com/glennib/envoke/pull/111))
+- *(deps)* update dependency cargo:release-plz to v0.3.162 ([#110](https://github.com/glennib/envoke/pull/110))
+- *(deps)* update dependency cargo:release-plz to v0.3.161 ([#108](https://github.com/glennib/envoke/pull/108))
+
 ## [2.1.3](https://github.com/glennib/envoke/compare/v2.1.2...v2.1.3) - 2026-08-31
 
 ### Other
