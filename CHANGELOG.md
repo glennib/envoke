@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.4](https://github.com/glennib/envoke/compare/v2.1.3...v2.1.4) - 2026-09-26
+
+### Other
+
+- *(deps)* update dependency cargo-binstall to v1.24.0 ([#130](https://github.com/glennib/envoke/pull/130))
+- *(deps)* update rust crate thiserror to v2.0.21 ([#129](https://github.com/glennib/envoke/pull/129))
+- *(deps)* update dependency cargo:cargo-nextest to v0.9.146 ([#128](https://github.com/glennib/envoke/pull/128))
+- *(deps)* lock file maintenance ([#127](https://github.com/glennib/envoke/pull/127))
+- *(deps)* update dependency cargo:release-plz to v0.3.169 ([#126](https://github.com/glennib/envoke/pull/126))
+- *(deps)* update dependency cargo:release-plz to v0.3.168 ([#125](https://github.com/glennib/envoke/pull/125))
+- *(deps)* update dependency cargo:cargo-nextest to v0.9.145 ([#124](https://github.com/glennib/envoke/pull/124))
+- *(deps)* update rust crate clap_complete to v4.6.11 ([#123](https://github.com/glennib/envoke/pull/123))
+- *(deps)* update rust crate clap to v4.6.7 ([#121](https://github.com/glennib/envoke/pull/121))
+- *(deps)* update rust crate clap_complete to v4.6.10 ([#122](https://github.com/glennib/envoke/pull/122))
+- *(deps)* lock file maintenance ([#120](https://github.com/glennib/envoke/pull/120))
+- *(deps)* update rust crate textwrap to v0.16.4 ([#119](https://github.com/glennib/envoke/pull/119))
+- *(deps)* update dependency cargo:release-plz to v0.3.167 ([#118](https://github.com/glennib/envoke/pull/118))
+- *(deps)* update dependency cargo:cargo-nextest to v0.9.144 ([#116](https://github.com/glennib/envoke/pull/116))
+- *(deps)* update dependency cargo:release-plz to v0.3.165 ([#117](https://github.com/glennib/envoke/pull/117))
+- *(deps)* update rust crate textwrap to v0.16.3 ([#115](https://github.com/glennib/envoke/pull/115))
+- *(deps)* update dependency cargo:release-plz to v0.3.164 ([#114](https://github.com/glennib/envoke/pull/114))
+- *(deps)* update dependency cargo:release-plz to v0.3.163 ([#113](https://github.com/glennib/envoke/pull/113))
+- *(deps)* lock file maintenance ([#112](https://github.com/glennib/envoke/pull/112))
+- *(deps)* update dependency cargo-binstall to v1.23.0 ([#111](https://github.com/glennib/envoke/pull/111))
+- *(deps)* update dependency cargo:release-plz to v0.3.162 ([#110](https://github.com/glennib/envoke/pull/110))
+- *(deps)* update dependency cargo:release-plz to v0.3.161 ([#108](https://github.com/glennib/envoke/pull/108))
+
 ## [2.1.3](https://github.com/glennib/envoke/compare/v2.1.2...v2.1.3) - 2026-08-31
 
 ### Other
