@@ -116,9 +116,9 @@ fn render(ctx: &RenderContext, template: &str) -> miette::Result<String> {
     let tmpl = env.get_template("output").expect("template just added");
     let rendered = tmpl
         .render(minijinja::context! {
-            variables => variables,
-            v => v,
-            meta => &ctx.meta,
+            variables => minijinja::value::Serde(variables),
+            v => minijinja::value::Serde(v),
+            meta => minijinja::value::Serde(&ctx.meta),
         })
         .into_diagnostic()
         .context("failed to render output template")?;
@@ -380,6 +380,12 @@ mod tests {
     }
 
     #[test]
+    fn test_format_json_matches_snapshot() {
+        let output = render_format(&format_fixture(), Format::Json).unwrap();
+        insta::assert_snapshot!(output, @r#"{"A": "hello", "B": "it\"s\nmultiline", "C": "long description"}"#);
+    }
+
+    #[test]
     fn test_format_yaml_round_trips() {
         let output = render_format(&format_fixture(), Format::Yaml).unwrap();
         let parsed: BTreeMap<String, String> =
@@ -493,6 +499,31 @@ mod tests {
         assert_eq!(parsed["metadata"]["name"].as_str(), Some("envoke-local"));
         assert_eq!(parsed["stringData"]["A"].as_str(), Some("hello"));
         assert_eq!(parsed["stringData"]["B"].as_str(), Some("it\"s\nmultiline"));
+    }
+
+    #[test]
+    fn test_tojson_formats_round_trip_special_characters() {
+        let value = "it's <b>&amp;</b> \"q\" $HOME \\ back\ttab ünïcødé — ✓ / slash";
+        let ctx = RenderContext {
+            resolved: vec![Resolved {
+                name: "S".to_owned(),
+                value: value.to_owned(),
+                description: None,
+            }],
+            meta: test_meta(),
+        };
+
+        let json = render_format(&ctx, Format::Json).unwrap();
+        let parsed: BTreeMap<String, String> = serde_json::from_str(json.trim_end()).unwrap();
+        assert_eq!(parsed.get("S").map(String::as_str), Some(value));
+
+        let yaml = render_format(&ctx, Format::Yaml).unwrap();
+        let parsed: BTreeMap<String, String> = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(parsed.get("S").map(String::as_str), Some(value));
+
+        let k8s = render_format(&ctx, Format::K8sSecret).unwrap();
+        let parsed: serde_yml::Value = serde_yml::from_str(&k8s).unwrap();
+        assert_eq!(parsed["stringData"]["S"].as_str(), Some(value));
     }
 
     #[test]

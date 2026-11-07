@@ -302,12 +302,12 @@ fn resolve_source(
                 .collect();
             ctx.insert(
                 "meta",
-                minijinja::Value::from_serialize(&TemplateMeta {
+                minijinja::Value::from(minijinja::value::Serde(&TemplateMeta {
                     environment,
                     tags,
                     overrides,
                     timestamp,
-                }),
+                })),
             );
             let value = env.render_str(tmpl, ctx).map_err(|e| ResolveError {
                 variable: variable.to_owned(),
@@ -1647,6 +1647,25 @@ mod tests {
         )
         .unwrap();
         assert_eq!(resolved[0].value, "vault,oauth");
+    }
+
+    #[test]
+    fn test_template_meta_tags_tojson() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "TAGS".to_owned(),
+                var_with_default(template("{{ meta.tags | tojson }}"), BTreeMap::new()),
+            )]),
+        };
+        let resolved = resolve(
+            &config,
+            "local",
+            &["vault".to_owned(), "oauth".to_owned()],
+            &[],
+        )
+        .unwrap();
+        let tags: Vec<String> = serde_json::from_str(&resolved[0].value).unwrap();
+        assert_eq!(tags, ["vault", "oauth"]);
     }
 
     #[test]

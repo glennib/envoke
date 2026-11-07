@@ -594,7 +594,7 @@ shapes most projects need; for anything else, use [`--template`](#custom-templat
 |--------|--------------|-------------|
 | `dotenv` *(default)* | `KEY='value'` when safe, else `KEY="value"` with conservative escapes (`\\`, `\"`, `\$`, `\n`). `$` never expands at the consumer. | `.env` files consumed by `dotenvy` (mise, Rust), `godotenv` (Docker Compose), `python-dotenv`, `node dotenv` |
 | `shell-export` | `export KEY='value'` | Source into a POSIX shell for children to inherit: `source <(envoke render local --format shell-export)` |
-| `json` | Compact JSON object | Feeding structured tools; pipe through `jq .` for pretty output |
+| `json` | Single-line JSON object | Feeding structured tools; pipe through `jq .` for pretty output |
 | `yaml` | YAML mapping (block style) | Human-readable config files, `yq` pipelines |
 | `k8s-secret` | Kubernetes `Secret` manifest with `stringData:` | `envoke render prod --format k8s-secret \| kubectl apply -f -` |
 | `github-actions` | Heredoc blocks for `$GITHUB_ENV` | `- run: envoke render prod --format github-actions >> "$GITHUB_ENV"` |
@@ -602,7 +602,8 @@ shapes most projects need; for anything else, use [`--template`](#custom-templat
 
 **Notes.**
 - `--format json` output is also valid YAML 1.2, so use it when you want
-  compact structured output.
+  single-line structured output. Its whitespace follows minijinja's `tojson`
+  and may change between envoke releases; parse it rather than comparing text.
 - `k8s-secret` derives `metadata.name` from the environment (lowercased, `_`
   replaced with `-`). For exotic env names, post-process or use `--template`.
 - Some `.env` parsers (e.g. `dotenvx`) expand `$VAR` inside double-quoted
@@ -644,6 +645,10 @@ are available (`upper`, `lower`, `replace`, `trim`, `default`, `join`, `length`,
 
 All filters are available in both variable templates (the `template` source type)
 and custom output templates.
+
+Printing a list or map directly (`{{ meta.tags }}`) uses minijinja's
+Python-style representation, e.g. `['a', 'b']`. Use `| join(",")` or
+`| tojson` when the output needs a stable format.
 
 ### Example: JSON output
 
