@@ -496,6 +496,31 @@ mod tests {
     }
 
     #[test]
+    fn test_tojson_formats_round_trip_special_characters() {
+        let value = "it's <b>&amp;</b> \"q\" $HOME \\ back\ttab ünïcødé — ✓ / slash";
+        let ctx = RenderContext {
+            resolved: vec![Resolved {
+                name: "S".to_owned(),
+                value: value.to_owned(),
+                description: None,
+            }],
+            meta: test_meta(),
+        };
+
+        let json = render_format(&ctx, Format::Json).unwrap();
+        let parsed: BTreeMap<String, String> = serde_json::from_str(json.trim_end()).unwrap();
+        assert_eq!(parsed.get("S").map(String::as_str), Some(value));
+
+        let yaml = render_format(&ctx, Format::Yaml).unwrap();
+        let parsed: BTreeMap<String, String> = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(parsed.get("S").map(String::as_str), Some(value));
+
+        let k8s = render_format(&ctx, Format::K8sSecret).unwrap();
+        let parsed: serde_yml::Value = serde_yml::from_str(&k8s).unwrap();
+        assert_eq!(parsed["stringData"]["S"].as_str(), Some(value));
+    }
+
+    #[test]
     fn test_format_k8s_secret_name_normalizes_env() {
         let mut ctx = format_fixture();
         ctx.meta.environment = "Prod_EU".to_owned();

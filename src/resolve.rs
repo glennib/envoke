@@ -1650,6 +1650,25 @@ mod tests {
     }
 
     #[test]
+    fn test_template_meta_tags_tojson() {
+        let config = Config {
+            variables: BTreeMap::from([(
+                "TAGS".to_owned(),
+                var_with_default(template("{{ meta.tags | tojson }}"), BTreeMap::new()),
+            )]),
+        };
+        let resolved = resolve(
+            &config,
+            "local",
+            &["vault".to_owned(), "oauth".to_owned()],
+            &[],
+        )
+        .unwrap();
+        let tags: Vec<String> = serde_json::from_str(&resolved[0].value).unwrap();
+        assert_eq!(tags, ["vault", "oauth"]);
+    }
+
+    #[test]
     fn test_template_meta_overrides() {
         let config = Config {
             variables: BTreeMap::from([(
