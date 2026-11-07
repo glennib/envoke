@@ -302,12 +302,12 @@ fn resolve_source(
                 .collect();
             ctx.insert(
                 "meta",
-                minijinja::Value::from_serialize(&TemplateMeta {
+                minijinja::Value::from(minijinja::value::Serde(&TemplateMeta {
                     environment,
                     tags,
                     overrides,
                     timestamp,
-                }),
+                })),
             );
             let value = env.render_str(tmpl, ctx).map_err(|e| ResolveError {
                 variable: variable.to_owned(),

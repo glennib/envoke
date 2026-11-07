@@ -116,9 +116,9 @@ fn render(ctx: &RenderContext, template: &str) -> miette::Result<String> {
     let tmpl = env.get_template("output").expect("template just added");
     let rendered = tmpl
         .render(minijinja::context! {
-            variables => variables,
-            v => v,
-            meta => &ctx.meta,
+            variables => minijinja::value::Serde(variables),
+            v => minijinja::value::Serde(v),
+            meta => minijinja::value::Serde(&ctx.meta),
         })
         .into_diagnostic()
         .context("failed to render output template")?;
