@@ -380,6 +380,12 @@ mod tests {
     }
 
     #[test]
+    fn test_format_json_matches_snapshot() {
+        let output = render_format(&format_fixture(), Format::Json).unwrap();
+        insta::assert_snapshot!(output, @r#"{"A": "hello", "B": "it\"s\nmultiline", "C": "long description"}"#);
+    }
+
+    #[test]
     fn test_format_yaml_round_trips() {
         let output = render_format(&format_fixture(), Format::Yaml).unwrap();
         let parsed: BTreeMap<String, String> =
