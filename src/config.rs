@@ -174,7 +174,7 @@ mod tests {
                 overrides: BTreeMap::new(),
             },
         )]);
-        assert!(config.environments().is_empty());
+        assert_eq!(config.environments(), Vec::<String>::new());
     }
 
     #[test]
@@ -237,7 +237,7 @@ mod tests {
                 overrides: BTreeMap::new(),
             },
         )]);
-        assert!(config.override_names().is_empty());
+        assert_eq!(config.override_names(), Vec::<String>::new());
     }
 
     #[test]
@@ -279,6 +279,6 @@ mod tests {
                 overrides: BTreeMap::new(),
             },
         )]);
-        assert!(config.tag_names().is_empty());
+        assert_eq!(config.tag_names(), Vec::<String>::new());
     }
 }
