@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.5](https://github.com/glennib/envoke/compare/v2.1.4...v2.1.5) - 2026-11-08
+
+### Other
+
+- upgrade dist to 0.34.0
+
 ## [2.1.4](https://github.com/glennib/envoke/compare/v2.1.3...v2.1.4) - 2026-11-07
 
 ### Fixed
