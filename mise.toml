@@ -2,7 +2,7 @@
 "cargo:cargo-dist" = "0.34.0"
 "cargo:cargo-nextest" = "0.9.151"
 "cargo:release-plz" = "0.4.3"
-cargo-binstall = "1.26.2"
+cargo-binstall = "1.27.0"
 jq = "1.8.2"
 cargo-insta = "latest"
 
