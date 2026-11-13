@@ -1,6 +1,6 @@
 [tools]
 "cargo:cargo-dist" = "0.34.0"
-"cargo:cargo-nextest" = "0.9.151"
+"cargo:cargo-nextest" = "0.9.152"
 "cargo:release-plz" = "0.4.3"
 cargo-binstall = "1.27.0"
 jq = "1.8.2"
