@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.6](https://github.com/glennib/envoke/compare/v2.1.5...v2.1.6) - 2026-11-21
+
+### Other
+
+- *(deps)* update dependency cargo-binstall to v1.28.0 ([#152](https://github.com/glennib/envoke/pull/152))
+- *(deps)* update rust crate clap to v4.6.9 ([#151](https://github.com/glennib/envoke/pull/151))
+- *(deps)* update rust crate clap to v4.6.8 ([#149](https://github.com/glennib/envoke/pull/149))
+- *(deps)* update rust crate clap_complete to v4.6.12 ([#150](https://github.com/glennib/envoke/pull/150))
+- *(deps)* lock file maintenance ([#148](https://github.com/glennib/envoke/pull/148))
+- *(deps)* update dependency cargo:cargo-nextest to v0.9.152 ([#147](https://github.com/glennib/envoke/pull/147))
+- *(deps)* update rust to v1.100.0 ([#146](https://github.com/glennib/envoke/pull/146))
+- *(deps)* update dependency cargo-binstall to v1.27.0 ([#145](https://github.com/glennib/envoke/pull/145))
+
 ## [2.1.5](https://github.com/glennib/envoke/compare/v2.1.4...v2.1.5) - 2026-11-08
 
 ### Other
