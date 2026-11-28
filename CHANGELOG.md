@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.7](https://github.com/glennib/envoke/compare/v2.1.6...v2.1.7) - 2026-11-28
+
+### Other
+
+- *(deps)* update dependency cargo-binstall to v1.29.0 ([#157](https://github.com/glennib/envoke/pull/157))
+- *(deps)* update rust to v1.100.1 ([#156](https://github.com/glennib/envoke/pull/156))
+
 ## [2.1.6](https://github.com/glennib/envoke/compare/v2.1.5...v2.1.6) - 2026-11-21
 
 ### Other
